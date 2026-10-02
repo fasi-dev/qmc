@@ -1,0 +1,39 @@
+rule_id: JAVA-JCA-SIG-001
+rule_version: 1.0.0
+language: java
+description: Signature.getInstance(<xxxwithYYY>) public-key signature
+library: java.security
+api: Signature.getInstance
+algorithm: RSA
+primitive: public-key
+operation: signature
+confidence: 0.95
+match:
+  type: regex
+  pattern: \bSignature\s*\.\s*getInstance\s*\(\s*"(?P<alg>[A-Za-z0-9_.+-]+)"
+  value_group: alg
+  refine:
+  - window: 400
+    pattern: \binitVerify\b
+    operation: verification
+  value_map:
+    rsassa-pss:
+      algorithm: RSA
+    ed25519:
+      algorithm: EdDSA
+    ed448:
+      algorithm: EdDSA
+    eddsa:
+      algorithm: EdDSA
+    '*withecdsa*':
+      algorithm: ECDSA
+    '*withrsa*':
+      algorithm: RSA
+    '*withdsa':
+      algorithm: DSA
+    ml-dsa*:
+      algorithm: ML-DSA
+      primitive: pqc-signature
+      operation: signing
+      confidence: 0.97
+  file_requires: java\.security|javax\.crypto|org\.bouncycastle

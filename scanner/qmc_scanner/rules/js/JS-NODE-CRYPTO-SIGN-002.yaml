@@ -1,0 +1,20 @@
+rule_id: JS-NODE-CRYPTO-SIGN-002
+rule_version: 1.0.0
+language: js
+description: createSign/createVerify('RSA-<hash>') explicit RSA
+library: node:crypto
+api: createSign
+algorithm: RSA
+primitive: public-key
+operation: signature
+confidence: 0.95
+match:
+  type: regex
+  file_requires: '[''"](?:node:)?crypto[''"]'
+  pattern: \b(?P<alg>createSign|createVerify)\s*\(\s*['\"]RSA-
+  value_group: alg
+  value_map:
+    createsign:
+      operation: signature
+    createverify:
+      operation: verification

@@ -1,0 +1,17 @@
+rule_id: PY-CRYPTOGRAPHY-RSA-001
+rule_version: 1.0.0
+language: python
+description: RSA key generation (cryptography)
+library: cryptography
+api: rsa.generate_private_key
+algorithm: RSA
+primitive: public-key
+operation: key_generation
+confidence: 0.97
+match:
+  type: python_call
+  qualified_names:
+  - cryptography.hazmat.primitives.asymmetric.rsa.generate_private_key
+  key_size:
+    kw: key_size
+    pos: 1

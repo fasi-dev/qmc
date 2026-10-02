@@ -1,0 +1,30 @@
+rule_id: JAVA-JCA-MD-001
+rule_version: 1.0.0
+language: java
+description: MessageDigest.getInstance(<SHA-*>)
+library: java.security
+api: MessageDigest.getInstance
+algorithm: SHA-256
+primitive: hash
+operation: hashing
+confidence: 0.95
+match:
+  type: regex
+  pattern: \bMessageDigest\s*\.\s*getInstance\s*\(\s*"(?P<alg>[A-Za-z0-9_.+-]+)"
+  value_group: alg
+  value_map:
+    sha-1:
+      algorithm: SHA-1
+    sha1:
+      algorithm: SHA-1
+    sha-256:
+      algorithm: SHA-256
+    sha256:
+      algorithm: SHA-256
+    sha-384:
+      algorithm: SHA-384
+    sha-512:
+      algorithm: SHA-512
+    sha3-*:
+      algorithm: SHA-3
+  file_requires: java\.security|javax\.crypto|org\.bouncycastle

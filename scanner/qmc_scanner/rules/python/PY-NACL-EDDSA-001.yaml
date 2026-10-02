@@ -1,0 +1,20 @@
+rule_id: PY-NACL-EDDSA-001
+rule_version: 1.0.0
+language: python
+description: Ed25519 signatures via PyNaCl
+library: pynacl
+api: nacl.signing
+algorithm: EdDSA
+primitive: public-key
+operation: signature
+confidence: 0.95
+match:
+  type: python_call
+  value_from: fqn
+  value_map:
+    nacl.signing.SigningKey.generate:
+      operation: key_generation
+    nacl.signing.SigningKey:
+      operation: signature
+    nacl.signing.VerifyKey:
+      operation: verification

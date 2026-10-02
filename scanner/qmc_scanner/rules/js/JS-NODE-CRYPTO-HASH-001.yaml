@@ -1,0 +1,26 @@
+rule_id: JS-NODE-CRYPTO-HASH-001
+rule_version: 1.0.0
+language: js
+description: createHash(<algorithm>)
+library: node:crypto
+api: createHash
+algorithm: SHA-256
+primitive: hash
+operation: hashing
+confidence: 0.95
+match:
+  type: regex
+  file_requires: '[''"](?:node:)?crypto[''"]'
+  pattern: \bcreateHash\s*\(\s*['\"](?P<alg>[A-Za-z0-9-]+)['\"]
+  value_group: alg
+  value_map:
+    sha1:
+      algorithm: SHA-1
+    sha256:
+      algorithm: SHA-256
+    sha384:
+      algorithm: SHA-384
+    sha512:
+      algorithm: SHA-512
+    sha3-*:
+      algorithm: SHA-3

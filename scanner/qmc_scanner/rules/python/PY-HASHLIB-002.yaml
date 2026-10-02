@@ -1,0 +1,39 @@
+rule_id: PY-HASHLIB-002
+rule_version: 1.0.0
+language: python
+description: hashlib.new / pbkdf2_hmac with a literal digest name
+library: hashlib
+api: hashlib.new
+algorithm: SHA-256
+primitive: hash
+operation: hashing
+confidence: 0.95
+match:
+  type: python_call
+  value_from: literal
+  qualified_names:
+  - hashlib.new
+  - hashlib.pbkdf2_hmac
+  literal_args:
+  - pos: 0
+  - kw: name
+  - kw: hash_name
+  value_map:
+    sha1:
+      algorithm: SHA-1
+    sha256:
+      algorithm: SHA-256
+    sha384:
+      algorithm: SHA-384
+    sha512:
+      algorithm: SHA-512
+    sha3_256:
+      algorithm: SHA-3
+    sha3_384:
+      algorithm: SHA-3
+    sha3_512:
+      algorithm: SHA-3
+    sha-1:
+      algorithm: SHA-1
+    sha-256:
+      algorithm: SHA-256

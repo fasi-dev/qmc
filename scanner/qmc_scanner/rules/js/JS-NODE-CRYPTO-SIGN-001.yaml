@@ -1,0 +1,24 @@
+rule_id: JS-NODE-CRYPTO-SIGN-001
+rule_version: 1.0.0
+language: js
+description: 'createSign/createVerify/crypto.sign/verify: key type decides RSA vs ECDSA (unresolved, medium)'
+library: node:crypto
+api: createSign
+algorithm: RSA/ECDSA
+primitive: public-key
+operation: signature
+confidence: 0.7
+match:
+  type: regex
+  file_requires: '[''"](?:node:)?crypto[''"]'
+  pattern: \b(?P<alg>createSign|createVerify|crypto\s*\.\s*sign|crypto\s*\.\s*verify)\s*\((?!\s*['\"]RSA-)
+  value_group: alg
+  value_map:
+    createsign:
+      operation: signature
+    createverify:
+      operation: verification
+    crypto.sign:
+      operation: signature
+    crypto.verify:
+      operation: verification

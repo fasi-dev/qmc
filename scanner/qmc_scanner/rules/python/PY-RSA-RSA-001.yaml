@@ -1,0 +1,26 @@
+rule_id: PY-RSA-RSA-001
+rule_version: 1.0.0
+language: python
+description: RSA via the python-rsa package
+library: rsa
+api: rsa
+algorithm: RSA
+primitive: public-key
+operation: key_generation
+confidence: 0.95
+match:
+  type: python_call
+  value_from: fqn
+  key_size:
+    pos: 0
+  value_map:
+    rsa.newkeys:
+      operation: key_generation
+    rsa.encrypt:
+      operation: encryption
+    rsa.decrypt:
+      operation: decryption
+    rsa.sign:
+      operation: signature
+    rsa.verify:
+      operation: verification

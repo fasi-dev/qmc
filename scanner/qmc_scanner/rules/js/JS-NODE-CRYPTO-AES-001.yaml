@@ -1,0 +1,25 @@
+rule_id: JS-NODE-CRYPTO-AES-001
+rule_version: 1.0.0
+language: js
+description: createCipheriv/createDecipheriv('aes-<bits>-<mode>')
+library: node:crypto
+api: createCipheriv
+algorithm: AES
+primitive: symmetric
+operation: encryption
+confidence: 0.95
+match:
+  type: regex
+  file_requires: '[''"](?:node:)?crypto[''"]'
+  pattern: \b(?P<alg>createCipheriv|createDecipheriv|createCipher|createDecipher)\s*\(\s*['\"]aes-(?P<bits>128|192|256)-[a-z0-9]+['\"]
+  value_group: alg
+  key_size_group: bits
+  value_map:
+    createcipheriv:
+      operation: encryption
+    createcipher:
+      operation: encryption
+    createdecipheriv:
+      operation: decryption
+    createdecipher:
+      operation: decryption

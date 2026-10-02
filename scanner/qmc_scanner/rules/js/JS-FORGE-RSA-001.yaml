@@ -1,0 +1,17 @@
+rule_id: JS-FORGE-RSA-001
+rule_version: 1.0.0
+language: js
+description: node-forge RSA key generation
+library: node-forge
+api: forge.pki.rsa.generateKeyPair
+algorithm: RSA
+primitive: public-key
+operation: key_generation
+confidence: 0.97
+match:
+  type: regex
+  file_requires: '[''\"]node-forge[''\"]'
+  pattern: \bforge\s*\.\s*pki\s*\.\s*rsa\s*\.\s*generateKeyPair(?:Async)?\s*\(
+  key_size_after:
+    window: 80
+    pattern: ^\s*\{?\s*(?:bits\s*:\s*)?(?P<bits>\d{3,5})

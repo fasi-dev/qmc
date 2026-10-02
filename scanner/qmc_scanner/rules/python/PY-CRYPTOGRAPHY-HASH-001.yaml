@@ -1,0 +1,28 @@
+rule_id: PY-CRYPTOGRAPHY-HASH-001
+rule_version: 1.0.0
+language: python
+description: cryptography hashes.* constructors
+library: cryptography
+api: hashes
+algorithm: SHA-256
+primitive: hash
+operation: hashing
+confidence: 0.95
+match:
+  type: python_call
+  value_from: fqn
+  value_map:
+    cryptography.hazmat.primitives.hashes.SHA1:
+      algorithm: SHA-1
+    cryptography.hazmat.primitives.hashes.SHA256:
+      algorithm: SHA-256
+    cryptography.hazmat.primitives.hashes.SHA384:
+      algorithm: SHA-384
+    cryptography.hazmat.primitives.hashes.SHA512:
+      algorithm: SHA-512
+    cryptography.hazmat.primitives.hashes.SHA3_256:
+      algorithm: SHA-3
+    cryptography.hazmat.primitives.hashes.SHA3_384:
+      algorithm: SHA-3
+    cryptography.hazmat.primitives.hashes.SHA3_512:
+      algorithm: SHA-3

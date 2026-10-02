@@ -1,0 +1,17 @@
+rule_id: PY-CRYPTOGRAPHY-DH-001
+rule_version: 1.0.0
+language: python
+description: Finite-field Diffie-Hellman parameter generation
+library: cryptography
+api: dh.generate_parameters
+algorithm: DH
+primitive: public-key
+operation: key_generation
+confidence: 0.95
+match:
+  type: python_call
+  qualified_names:
+  - cryptography.hazmat.primitives.asymmetric.dh.generate_parameters
+  key_size:
+    kw: key_size
+    pos: 1

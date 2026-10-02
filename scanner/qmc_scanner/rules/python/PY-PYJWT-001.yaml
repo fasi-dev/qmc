@@ -1,0 +1,54 @@
+rule_id: PY-PYJWT-001
+rule_version: 1.0.0
+language: python
+description: JWT signing with a literal algorithm (PyJWT / python-jose)
+library: pyjwt
+api: jwt.encode
+algorithm: ECDSA
+primitive: public-key
+operation: signature
+confidence: 0.92
+match:
+  type: python_call
+  value_from: literal
+  qualified_names:
+  - jwt.encode
+  - jose.jwt.encode
+  literal_args:
+  - kw: algorithm
+  - pos: 2
+  value_map:
+    ES256:
+      algorithm: ECDSA
+    ES384:
+      algorithm: ECDSA
+    ES512:
+      algorithm: ECDSA
+    ES256K:
+      algorithm: ECDSA
+    RS256:
+      algorithm: RSA
+    RS384:
+      algorithm: RSA
+    RS512:
+      algorithm: RSA
+    PS256:
+      algorithm: RSA
+    PS384:
+      algorithm: RSA
+    PS512:
+      algorithm: RSA
+    EdDSA:
+      algorithm: EdDSA
+    HS256:
+      algorithm: HMAC
+      primitive: mac
+      operation: mac_generation
+    HS384:
+      algorithm: HMAC
+      primitive: mac
+      operation: mac_generation
+    HS512:
+      algorithm: HMAC
+      primitive: mac
+      operation: mac_generation

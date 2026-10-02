@@ -1,0 +1,15 @@
+rule_id: PY-PYCRYPTODOME-AES-001
+rule_version: 1.0.0
+language: python
+description: AES cipher object (PyCryptodome)
+library: pycryptodome
+api: AES.new
+algorithm: AES
+primitive: symmetric
+operation: encryption
+confidence: 0.95
+match:
+  type: python_call
+  qualified_names:
+  - Crypto.Cipher.AES.new
+  - Cryptodome.Cipher.AES.new

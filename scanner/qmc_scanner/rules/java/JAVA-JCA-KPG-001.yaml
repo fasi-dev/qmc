@@ -1,0 +1,62 @@
+rule_id: JAVA-JCA-KPG-001
+rule_version: 1.0.0
+language: java
+description: KeyPairGenerator.getInstance(<algorithm>)
+library: java.security
+api: KeyPairGenerator.getInstance
+algorithm: RSA
+primitive: public-key
+operation: key_generation
+confidence: 0.95
+match:
+  type: regex
+  pattern: \bKeyPairGenerator\s*\.\s*getInstance\s*\(\s*"(?P<alg>[A-Za-z0-9_.+-]+)"
+  value_group: alg
+  key_size_after:
+    window: 400
+    pattern: \.initialize\(\s*(?P<bits>\d{3,5})
+  sibling_resolution:
+    from: EC
+    map:
+      ECDSA: ECDSA
+      ECDH: ECDH
+    confidence: 0.85
+  value_map:
+    rsa:
+      algorithm: RSA
+    rsassa-pss:
+      algorithm: RSA
+    dsa:
+      algorithm: DSA
+    ec:
+      algorithm: EC
+      confidence: 0.7
+    dh:
+      algorithm: DH
+    diffiehellman:
+      algorithm: DH
+    ed25519:
+      algorithm: EdDSA
+    ed448:
+      algorithm: EdDSA
+    eddsa:
+      algorithm: EdDSA
+    x25519:
+      algorithm: ECDH
+    x448:
+      algorithm: ECDH
+    xdh:
+      algorithm: ECDH
+    ecdh:
+      algorithm: ECDH
+    ml-kem*:
+      algorithm: ML-KEM
+      primitive: pqc-kem
+      operation: key_generation
+      confidence: 0.97
+    ml-dsa*:
+      algorithm: ML-DSA
+      primitive: pqc-signature
+      operation: key_generation
+      confidence: 0.97
+  file_requires: java\.security|javax\.crypto|org\.bouncycastle

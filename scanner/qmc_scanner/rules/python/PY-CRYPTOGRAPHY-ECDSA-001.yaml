@@ -1,0 +1,17 @@
+rule_id: PY-CRYPTOGRAPHY-ECDSA-001
+rule_version: 1.0.0
+language: python
+description: ECDSA signature algorithm object (sign/verify refined by enclosing call)
+library: cryptography
+api: ec.ECDSA
+algorithm: ECDSA
+primitive: public-key
+operation: signature
+confidence: 0.95
+match:
+  type: python_call
+  qualified_names:
+  - cryptography.hazmat.primitives.asymmetric.ec.ECDSA
+  operation_by_parent:
+    sign: signature
+    verify: verification

@@ -1,0 +1,17 @@
+rule_id: PY-HMAC-001
+rule_version: 1.0.0
+language: python
+description: HMAC construction
+library: hmac
+api: hmac
+algorithm: HMAC
+primitive: mac
+operation: mac_generation
+confidence: 0.95
+match:
+  type: python_call
+  qualified_names:
+  - hmac.new
+  - hmac.digest
+  - hmac.HMAC
+  - cryptography.hazmat.primitives.hmac.HMAC

@@ -1,0 +1,21 @@
+rule_id: PY-CRYPTOGRAPHY-AES-001
+rule_version: 1.0.0
+language: python
+description: AES / AES-GCM / AES-CCM (cryptography)
+library: cryptography
+api: AES
+algorithm: AES
+primitive: symmetric
+operation: encryption
+confidence: 0.95
+match:
+  type: python_call
+  value_from: fqn
+  value_map:
+    cryptography.hazmat.primitives.ciphers.algorithms.AES: {}
+    cryptography.hazmat.primitives.ciphers.algorithms.AES128:
+      key_size: 128
+    cryptography.hazmat.primitives.ciphers.algorithms.AES256:
+      key_size: 256
+    cryptography.hazmat.primitives.ciphers.aead.AESGCM: {}
+    cryptography.hazmat.primitives.ciphers.aead.AESCCM: {}

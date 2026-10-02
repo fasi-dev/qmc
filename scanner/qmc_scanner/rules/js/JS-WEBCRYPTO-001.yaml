@@ -1,0 +1,53 @@
+rule_id: JS-WEBCRYPTO-001
+rule_version: 1.0.0
+language: js
+description: 'WebCrypto algorithm object { name: ''<alg>'' } (algorithm named; call context not parsed -> medium)'
+library: webcrypto
+api: SubtleCrypto
+algorithm: RSA
+primitive: public-key
+operation: encryption
+confidence: 0.8
+match:
+  type: regex
+  file_requires: \bsubtle\b
+  pattern: \bname\s*:\s*['\"](?P<alg>RSA-OAEP|RSA-PSS|RSASSA-PKCS1-v1_5|ECDSA|ECDH|Ed25519|X25519|AES-GCM|AES-CBC|AES-CTR|AES-KW)['\"]
+  value_group: alg
+  value_map:
+    rsa-oaep:
+      algorithm: RSA
+      operation: encryption
+    rsa-pss:
+      algorithm: RSA
+      operation: signature
+    rsassa-pkcs1-v1_5:
+      algorithm: RSA
+      operation: signature
+    ecdsa:
+      algorithm: ECDSA
+      operation: signature
+    ecdh:
+      algorithm: ECDH
+      operation: key_agreement
+    ed25519:
+      algorithm: EdDSA
+      operation: signature
+    x25519:
+      algorithm: ECDH
+      operation: key_agreement
+    aes-gcm:
+      algorithm: AES
+      primitive: symmetric
+      operation: encryption
+    aes-cbc:
+      algorithm: AES
+      primitive: symmetric
+      operation: encryption
+    aes-ctr:
+      algorithm: AES
+      primitive: symmetric
+      operation: encryption
+    aes-kw:
+      algorithm: AES
+      primitive: symmetric
+      operation: encryption

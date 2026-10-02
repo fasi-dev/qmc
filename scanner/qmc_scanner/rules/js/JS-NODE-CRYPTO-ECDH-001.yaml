@@ -1,0 +1,14 @@
+rule_id: JS-NODE-CRYPTO-ECDH-001
+rule_version: 1.0.0
+language: js
+description: crypto.createECDH
+library: node:crypto
+api: createECDH
+algorithm: ECDH
+primitive: public-key
+operation: key_agreement
+confidence: 0.95
+match:
+  type: regex
+  file_requires: '[''"](?:node:)?crypto[''"]'
+  pattern: \bcreateECDH\s*\(

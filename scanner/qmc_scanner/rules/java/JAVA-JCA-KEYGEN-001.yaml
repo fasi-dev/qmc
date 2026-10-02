@@ -1,0 +1,17 @@
+rule_id: JAVA-JCA-KEYGEN-001
+rule_version: 1.0.0
+language: java
+description: KeyGenerator.getInstance("AES") (records init size)
+library: javax.crypto
+api: KeyGenerator.getInstance
+algorithm: AES
+primitive: symmetric
+operation: key_generation
+confidence: 0.95
+match:
+  type: regex
+  pattern: \bKeyGenerator\s*\.\s*getInstance\s*\(\s*"AES"
+  key_size_after:
+    window: 400
+    pattern: \.init\(\s*(?P<bits>\d{3})
+  file_requires: java\.security|javax\.crypto|org\.bouncycastle

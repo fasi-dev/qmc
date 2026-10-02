@@ -1,0 +1,42 @@
+rule_id: JS-CRYPTOJS-001
+rule_version: 1.0.0
+language: js
+description: crypto-js primitives
+library: crypto-js
+api: CryptoJS
+algorithm: AES
+primitive: symmetric
+operation: encryption
+confidence: 0.95
+match:
+  type: regex
+  file_requires: '[''\"]crypto-js'
+  pattern: \bCryptoJS\s*\.\s*(?P<alg>AES|SHA1|SHA256|SHA384|SHA512|SHA3|HmacSHA1|HmacSHA256|HmacSHA384|HmacSHA512)\b
+  value_group: alg
+  value_map:
+    aes:
+      algorithm: AES
+    sha1:
+      algorithm: SHA-1
+      primitive: hash
+      operation: hashing
+    sha256:
+      algorithm: SHA-256
+      primitive: hash
+      operation: hashing
+    sha384:
+      algorithm: SHA-384
+      primitive: hash
+      operation: hashing
+    sha512:
+      algorithm: SHA-512
+      primitive: hash
+      operation: hashing
+    sha3:
+      algorithm: SHA-3
+      primitive: hash
+      operation: hashing
+    hmac*:
+      algorithm: HMAC
+      primitive: mac
+      operation: mac_generation
