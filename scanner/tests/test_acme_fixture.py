@@ -27,7 +27,7 @@ def pick(res, file, algorithm, operation=None, comment_only=False):
 
 
 def test_scan_complete_and_fast(res):
-    assert res.status == "complete" and res.files_skipped == [] and res.files_scanned["python"] == 6
+    assert res.status == "complete" and res.files_skipped == [] and res.files_scanned == {"doc": 2, "java": 1, "pem": 1, "python": 6, "text": 1, "yaml": 2}
 
 
 def test_row1_ecdh_key_establishment(res):
@@ -96,13 +96,28 @@ def test_quantum_vulnerable_set_is_exactly_the_code_rows(res):
         ("scripts/gen_test_keys.py", "RSA", "key_generation"),
         ("src/auth.py", "ECDSA", "key_generation"), ("src/auth.py", "ECDSA", "signature"), ("src/auth.py", "RSA", "key_generation"),
         ("src/java/TokenSigner.java", "ECDH", "key_agreement"), ("src/java/TokenSigner.java", "ECDSA", "signature"),
-        ("src/payments/keys.py", "ECDH", "key_generation")])
+        ("src/payments/keys.py", "ECDH", "key_generation"),
+        ("certs/api.acme-payments.example.crt", "RSA", "verification"),
+        ("deploy/nginx/tls.conf", "ECDH", "key_agreement"), ("deploy/nginx/tls.conf", "RSA", "signature")])
 
 
-def test_deferred_rows_6_and_11_need_config_rules(res):
-    """Rows 6 (deploy/nginx/tls.conf) and 11 (certs/*.crt) are config/cert detections: not in this step."""
-    assert not (FIXTURE / "deploy").exists() and not (FIXTURE / "certs").exists()   # fixture files arrive with phase 11
-    assert not [f for f in res.findings if f["primitive"] == "protocol"]
+def test_row6_nginx_tls_deprecated_protocols_and_weak_ciphers(res):
+    proto = pick(res, "deploy/nginx/tls.conf", "TLS", "config")
+    assert proto["rule_id"] in {"CFG-NGINX-TLS-001", "CFG-NGINX-CIPHER-004"} and proto["confidence_level"] == "medium"
+    rules = {f["rule_id"] for f in res.findings if f["file"] == "deploy/nginx/tls.conf"}
+    assert {"CFG-NGINX-TLS-001", "CFG-NGINX-CIPHER-004", "CFG-NGINX-CIPHER-001", "CFG-NGINX-CIPHER-003", "CFG-NGINX-TLS-002"} <= rules
+    assert not pick(res, "deploy/nginx/tls.conf", "TLS", "config")["quantum_vulnerable"]      # TLS 1.0 / weak ciphers = classical hygiene
+    assert pick(res, "deploy/nginx/tls.conf", "ECDH", "key_agreement")["quantum_vulnerable"]  # ECDHE key exchange = quantum-vulnerable
+
+
+def test_row11_expired_self_signed_certificate(res):
+    f = pick(res, "certs/api.acme-payments.example.crt", "RSA", "verification")
+    assert (f["confidence_level"], f["quantum_vulnerable"], f["metadata"]["key_size"]) == ("medium", True, 2048)
+    assert "self-signed" in f["evidence"] and "; expired)" in f["evidence"] and "notAfter=2021-03-01" in f["evidence"]
+
+
+def test_docker_compose_has_no_crypto_findings(res):
+    assert not [f for f in res.findings if f["file"] == "deploy/docker-compose.yml"]
 
 
 def test_every_finding_has_file_line_evidence(res):
@@ -120,6 +135,12 @@ def test_golden_summary_is_stable(res):
     got = [(f["rule_id"], f["file"], f["line_start"], f["algorithm"], f["operation"], f["confidence_level"]) for f in res.findings]
     assert got == [
         ("GEN-COMMENT-001", "README.md", 5, "RSA", "unspecified", "low"),
+        ("CFG-X509-001", "certs/api.acme-payments.example.crt", 1, "RSA", "verification", "medium"),
+        ("CFG-NGINX-TLS-002", "deploy/nginx/tls.conf", 6, "TLS", "termination", "medium"),
+        ("CFG-NGINX-TLS-001", "deploy/nginx/tls.conf", 10, "TLS", "config", "medium"),
+        ("CFG-NGINX-CIPHER-001", "deploy/nginx/tls.conf", 11, "ECDH", "key_agreement", "medium"),
+        ("CFG-NGINX-CIPHER-003", "deploy/nginx/tls.conf", 11, "RSA", "signature", "medium"),
+        ("CFG-NGINX-CIPHER-004", "deploy/nginx/tls.conf", 11, "TLS", "config", "medium"),
         ("PY-OQS-KEM-001", "pqc-lab/kem_demo.py", 4, "ML-KEM", "key_generation", "high"),
         ("PY-CRYPTOGRAPHY-RSA-001", "scripts/gen_test_keys.py", 4, "RSA", "key_generation", "high"),
         ("GEN-COMMENT-001", "src/auth.py", 7, "RSA", "unspecified", "low"),

@@ -96,7 +96,7 @@ def test_shipped_rules_are_consistent():
     for r in rs.rules:
         assert SEMVER.match(r.rule_version) and r.rule_id.upper() == r.rule_id
         assert (RULES_DIR / r.language / f"{r.rule_id}.yaml").is_file()
-    assert {r.language for r in rs.rules} == {"python", "java", "js", "generic"}
+    assert {r.language for r in rs.rules} == {"python", "java", "js", "generic", "config"}
 
 
 def test_changing_a_rule_version_is_reflected_in_findings(tmp_path):

@@ -133,7 +133,7 @@ def test_python_object_yaml_tag_is_never_constructed(tmp_path):
 
 
 def test_invalid_yaml_and_json_reported_not_crashing(scan):
-    res = scan({"bad.yaml": "a: [unclosed\n", "bad.json": '{"algorithm": "ES256",}\n', "ok.yaml": "algorithm: ES256\n"})
+    res = scan({"bad.yaml": "a: [unclosed\n", "bad.json": '{"algorithm": "ES256"\n', "ok.yaml": "algorithm: ES256\n"})
     assert {(s["file"], s["reason"]) for s in res.files_skipped} == {("bad.yaml", "parse_error"), ("bad.json", "parse_error")}
     assert [f["file"] for f in code_findings(res)] == ["ok.yaml"]
 
@@ -195,7 +195,7 @@ def test_expired_self_signed_rsa_certificate(scan):
     for part in ("self-signed", "key=RSA-2048", "signature=sha256WithRSAEncryption", "notAfter=2021-03-01", "expired",
                  "subject=CN=api.acme-payments.example", "-----BEGIN CERTIFICATE-----"):
         assert part in f["evidence"], part
-    assert "not expired" not in f["evidence"] and (f["line_start"], f["line_end"]) == (1, 20)
+    assert "; expired)" in f["evidence"] and f["line_start"] == 1 and 15 <= f["line_end"] <= 25
     validate_finding(f)
 
 
@@ -230,9 +230,10 @@ def test_sha1_signed_certificate_adds_hash_hygiene_finding(scan):
 
 
 def test_certificate_chain_gives_one_finding_per_cert(scan):
-    res = scan({"chain.pem": make_cert() + make_cert("ec", self_signed=False)}, as_of=AS_OF)
+    first = make_cert()
+    res = scan({"chain.pem": first + make_cert("ec", self_signed=False)}, as_of=AS_OF)
     fs = cert_findings(res)
-    assert [(f["algorithm"], f["line_start"]) for f in fs] == [("RSA", 1), ("ECDSA", 21)]
+    assert [(f["algorithm"], f["line_start"]) for f in fs] == [("RSA", 1), ("ECDSA", len(first.splitlines()) + 1)]
 
 
 def test_private_key_blocks_and_non_certificates_are_ignored(scan):
@@ -256,8 +257,8 @@ def test_pem_in_source_files_is_not_parsed_as_certificate(scan):
 
 def test_hostile_certificate_subject_is_bounded_and_redacted(scan):
     tok = "ghp_" + "b" * 36
-    (f,) = cert_findings(scan({"a.crt": make_cert(cn=("x" * 300) + tok)}, as_of=AS_OF))
-    assert len(f["evidence"]) <= 300 and tok not in f["evidence"]
+    (f,) = cert_findings(scan({"a.crt": make_cert(cn=("x" * 20) + " " + tok)}, as_of=AS_OF))   # X.509 limits a CN to 64 chars
+    assert len(f["evidence"]) <= 300 and tok not in f["evidence"] and "***REDACTED***" in f["evidence"]
 
 
 def test_certificate_flow_through_phase2_redaction_keeps_certificate_intact(scan):

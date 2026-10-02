@@ -142,7 +142,7 @@ def test_symlinks_are_not_followed(tmp_path):
 
 def test_language_counts_and_unsupported_files_ignored(scan):
     res = scan({**FILES, "data.bin": b"\x00\x01", "x.yaml": "algorithm: RSA\n", "Dockerfile": "FROM x\n"})
-    assert res.files_scanned == {"doc": 1, "java": 1, "js": 1, "python": 2}
+    assert res.files_scanned == {"doc": 1, "java": 1, "js": 1, "python": 2, "text": 1, "yaml": 1}   # x.yaml + Dockerfile are config kinds since phase 3.5
 
 
 def test_timeout_returns_partial(scan):
