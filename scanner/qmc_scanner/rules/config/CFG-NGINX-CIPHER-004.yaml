@@ -1,0 +1,30 @@
+rule_id: CFG-NGINX-CIPHER-004
+rule_version: 1.0.0
+language: config
+description: 'Weak cipher suites enabled in ssl_ciphers (RC4, 3DES/DES, NULL, EXPORT, MD5): classical hygiene'
+library: nginx
+api: ssl_ciphers
+algorithm: TLS
+primitive: protocol
+operation: config
+confidence: 0.85
+match:
+  type: directive
+  file_pattern: (?i)\.(?:conf|nginx)$
+  flags:
+  - IGNORECASE
+  pattern: ^\s*ssl_ciphers\s+(?P<value>[^;]+);?
+  value_map:
+    '*rc4*': {}
+    '*3des*': {}
+    des-*: {}
+    '*-des-*': {}
+    '*-des': {}
+    '*null*': {}
+    '*export*': {}
+    exp-*: {}
+    '*-md5': {}
+    '*-md5-*': {}
+  skip_prefixes:
+  - '!'
+  - '-'

@@ -1,0 +1,24 @@
+rule_id: JS-JOSE-002
+rule_version: 1.0.0
+language: js
+description: JWT verification algorithm list (algorithms) in a jose/jsonwebtoken file
+library: jose
+api: algorithms
+algorithm: ECDSA
+primitive: public-key
+operation: verification
+confidence: 0.92
+match:
+  type: regex
+  file_requires: '[''\"](?:jose|jsonwebtoken|jws|jwt-simple|@panva/jose)[''\"]'
+  pattern: \balgorithms\s*:\s*\[\s*['\"](?P<alg>(?:ES256K|ES256|ES384|ES512|RS256|RS384|RS512|PS256|PS384|PS512|EdDSA))['\"]
+  value_group: alg
+  value_map:
+    es*:
+      algorithm: ECDSA
+    rs*:
+      algorithm: RSA
+    ps*:
+      algorithm: RSA
+    eddsa:
+      algorithm: EdDSA

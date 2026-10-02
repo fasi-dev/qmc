@@ -1,0 +1,18 @@
+rule_id: PY-PYCRYPTODOME-RSA-001
+rule_version: 1.0.0
+language: python
+description: RSA key generation (PyCryptodome)
+library: pycryptodome
+api: RSA.generate
+algorithm: RSA
+primitive: public-key
+operation: key_generation
+confidence: 0.97
+match:
+  type: python_call
+  qualified_names:
+  - Crypto.PublicKey.RSA.generate
+  - Cryptodome.PublicKey.RSA.generate
+  key_size:
+    kw: bits
+    pos: 0

@@ -1,0 +1,28 @@
+rule_id: CFG-DOCKER-002
+rule_version: 1.0.0
+language: config
+description: Dockerfile base image that bundles a TLS-terminating server (inventory hint only; TLS use itself is not proven)
+library: docker
+api: FROM
+algorithm: TLS
+primitive: protocol
+operation: termination
+confidence: 0.55
+match:
+  type: directive
+  file_pattern: (?i)(?:^|/)dockerfile(?:\.[^/]*)?$|\.dockerfile$
+  pattern: (?i)^\s*FROM\s+(?:--\S+\s+)*(?P<value>\S+)
+  split: \s+
+  value_map:
+    nginx*: {}
+    '*/nginx*': {}
+    haproxy*: {}
+    '*/haproxy*': {}
+    traefik*: {}
+    '*/traefik*': {}
+    caddy*: {}
+    '*/caddy*': {}
+    httpd*: {}
+    '*/httpd*': {}
+    envoyproxy/envoy*: {}
+    '*/envoyproxy/envoy*': {}

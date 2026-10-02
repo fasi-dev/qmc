@@ -1,0 +1,22 @@
+rule_id: CFG-NGINX-TLS-001
+rule_version: 1.0.0
+language: config
+description: Deprecated protocol versions (SSLv2/SSLv3/TLS 1.0/TLS 1.1) enabled in ssl_protocols (classical hygiene, not quantum)
+library: nginx
+api: ssl_protocols
+algorithm: TLS
+primitive: protocol
+operation: config
+confidence: 0.85
+match:
+  type: directive
+  file_pattern: (?i)\.(?:conf|nginx)$
+  flags:
+  - IGNORECASE
+  pattern: ^\s*ssl_protocols\s+(?P<value>[^;]+);?
+  value_map:
+    tlsv1: {}
+    tlsv1.0: {}
+    tlsv1.1: {}
+    sslv2: {}
+    sslv3: {}

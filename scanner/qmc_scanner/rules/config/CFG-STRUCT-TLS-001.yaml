@@ -1,0 +1,31 @@
+rule_id: CFG-STRUCT-TLS-001
+rule_version: 1.0.0
+language: config
+description: Deprecated TLS/SSL version in a tls/ssl-named version or protocols key (YAML/JSON); bare '1.0'/'1.1' accepted here
+library: config
+api: tls version
+algorithm: TLS
+primitive: protocol
+operation: config
+confidence: 0.85
+match:
+  type: structured
+  key_pattern: (?i)(?:tls|ssl)[a-z_-]*(?:version|protocols?)s?$
+  split: '[\s,]+'
+  value_map:
+    tlsv1: {}
+    tlsv1.0: {}
+    tlsv1_0: {}
+    tls1: {}
+    tls1.0: {}
+    tls10: {}
+    tlsv1.1: {}
+    tlsv1_1: {}
+    tls1.1: {}
+    tls11: {}
+    sslv2: {}
+    sslv3: {}
+    ssl2: {}
+    ssl3: {}
+    '1.0': {}
+    '1.1': {}

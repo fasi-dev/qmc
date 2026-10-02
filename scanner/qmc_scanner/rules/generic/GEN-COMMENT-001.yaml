@@ -1,0 +1,79 @@
+rule_id: GEN-COMMENT-001
+rule_version: 1.0.0
+language: generic
+description: Algorithm named in a comment or documentation file (never executable evidence; capped at Low)
+library: null
+api: null
+algorithm: RSA
+primitive: public-key
+operation: unspecified
+confidence: 0.3
+match:
+  type: comment_mention
+  mentions:
+  - pattern: \bRSA\b
+    algorithm: RSA
+    primitive: public-key
+  - pattern: \bECDSA\b
+    algorithm: ECDSA
+    primitive: public-key
+  - pattern: \bECDH(?:E)?\b
+    algorithm: ECDH
+    primitive: public-key
+  - pattern: \b(?:EdDSA|Ed25519|Ed448)\b
+    algorithm: EdDSA
+    primitive: public-key
+    flags:
+    - IGNORECASE
+  - pattern: \b(?:X25519|X448)\b
+    algorithm: ECDH
+    primitive: public-key
+    flags:
+    - IGNORECASE
+  - pattern: \bDSA\b
+    algorithm: DSA
+    primitive: public-key
+  - pattern: \bDiffie[- ]?Hellman\b|\bDH\b
+    algorithm: DH
+    primitive: public-key
+  - pattern: \bAES(?:-?\d{3})?\b
+    algorithm: AES
+    primitive: symmetric
+  - pattern: \bSHA-?1\b
+    algorithm: SHA-1
+    primitive: hash
+    flags:
+    - IGNORECASE
+  - pattern: \bSHA-?256\b
+    algorithm: SHA-256
+    primitive: hash
+    flags:
+    - IGNORECASE
+  - pattern: \bSHA-?(?:384|512)\b
+    algorithm: SHA-2
+    primitive: hash
+    flags:
+    - IGNORECASE
+  - pattern: \bSHA-?3\b
+    algorithm: SHA-3
+    primitive: hash
+    flags:
+    - IGNORECASE
+  - pattern: \bHMAC\b
+    algorithm: HMAC
+    primitive: mac
+  - pattern: \bML-KEM\b
+    algorithm: ML-KEM
+    primitive: pqc-kem
+    flags:
+    - IGNORECASE
+  - pattern: \bML-DSA\b
+    algorithm: ML-DSA
+    primitive: pqc-signature
+    flags:
+    - IGNORECASE
+  - pattern: \bSLH-DSA\b
+    algorithm: SLH-DSA
+    primitive: pqc-signature
+    flags:
+    - IGNORECASE

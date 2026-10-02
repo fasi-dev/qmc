@@ -1,0 +1,50 @@
+rule_id: CFG-NGINX-CIPHER-003
+rule_version: 1.0.0
+language: config
+description: ssl_ciphers names RSA/ECDSA/DSA authentication or RSA key transport
+library: nginx
+api: ssl_ciphers
+algorithm: RSA
+primitive: public-key
+operation: signature
+confidence: 0.75
+match:
+  type: directive
+  file_pattern: (?i)\.(?:conf|nginx)$
+  flags:
+  - IGNORECASE
+  pattern: ^\s*ssl_ciphers\s+(?P<value>[^;]+);?
+  value_map:
+    ecdhe-rsa*:
+      algorithm: RSA
+      operation: signature
+    dhe-rsa*:
+      algorithm: RSA
+      operation: signature
+    edh-rsa*:
+      algorithm: RSA
+      operation: signature
+    ecdh-rsa*:
+      algorithm: RSA
+      operation: signature
+    dh-rsa*:
+      algorithm: RSA
+      operation: signature
+    ecdhe-ecdsa*:
+      algorithm: ECDSA
+      operation: signature
+    ecdh-ecdsa*:
+      algorithm: ECDSA
+      operation: signature
+    dhe-dss*:
+      algorithm: DSA
+      operation: signature
+    edh-dss*:
+      algorithm: DSA
+      operation: signature
+    rsa-*:
+      algorithm: RSA
+      operation: encryption
+  skip_prefixes:
+  - '!'
+  - '-'

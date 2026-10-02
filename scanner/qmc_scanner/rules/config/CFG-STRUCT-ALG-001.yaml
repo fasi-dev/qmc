@@ -1,0 +1,168 @@
+rule_id: CFG-STRUCT-ALG-001
+rule_version: 1.0.0
+language: config
+description: 'Algorithm string under an alg/algorithm(s)/*_algorithm key in YAML or JSON (e.g. algorithm: ES256)'
+library: config
+api: algorithm
+algorithm: RSA
+primitive: public-key
+operation: unspecified
+confidence: 0.8
+match:
+  type: structured
+  key_pattern: (?i)(?:^|[_-])algs?$|algorithms?$
+  split: '[\s,]+'
+  value_map:
+    es256:
+      algorithm: ECDSA
+      operation: signature
+    es384:
+      algorithm: ECDSA
+      operation: signature
+    es512:
+      algorithm: ECDSA
+      operation: signature
+    es256k:
+      algorithm: ECDSA
+      operation: signature
+    rs256:
+      algorithm: RSA
+      operation: signature
+    rs384:
+      algorithm: RSA
+      operation: signature
+    rs512:
+      algorithm: RSA
+      operation: signature
+    ps256:
+      algorithm: RSA
+      operation: signature
+    ps384:
+      algorithm: RSA
+      operation: signature
+    ps512:
+      algorithm: RSA
+      operation: signature
+    eddsa:
+      algorithm: EdDSA
+      operation: signature
+    hs256:
+      algorithm: HMAC
+      primitive: mac
+      operation: mac_generation
+    hs384:
+      algorithm: HMAC
+      primitive: mac
+      operation: mac_generation
+    hs512:
+      algorithm: HMAC
+      primitive: mac
+      operation: mac_generation
+    ecdsa*:
+      algorithm: ECDSA
+      operation: signature
+    ecdh*:
+      algorithm: ECDH
+      operation: key_agreement
+    ed25519:
+      algorithm: EdDSA
+      operation: signature
+    ed448:
+      algorithm: EdDSA
+      operation: signature
+    x25519:
+      algorithm: ECDH
+      operation: key_agreement
+    x448:
+      algorithm: ECDH
+      operation: key_agreement
+    rsa:
+      algorithm: RSA
+      operation: unspecified
+    rsa-*:
+      algorithm: RSA
+      operation: unspecified
+    dsa:
+      algorithm: DSA
+      operation: signature
+    dh:
+      algorithm: DH
+      operation: key_agreement
+    diffie-hellman*:
+      algorithm: DH
+      operation: key_agreement
+    aes-128*:
+      algorithm: AES
+      primitive: symmetric
+      operation: encryption
+      key_size: 128
+    aes-192*:
+      algorithm: AES
+      primitive: symmetric
+      operation: encryption
+      key_size: 192
+    aes-256*:
+      algorithm: AES
+      primitive: symmetric
+      operation: encryption
+      key_size: 256
+    aes*:
+      algorithm: AES
+      primitive: symmetric
+      operation: encryption
+    sha1:
+      algorithm: SHA-1
+      primitive: hash
+      operation: hashing
+    sha-1:
+      algorithm: SHA-1
+      primitive: hash
+      operation: hashing
+    sha256:
+      algorithm: SHA-256
+      primitive: hash
+      operation: hashing
+    sha-256:
+      algorithm: SHA-256
+      primitive: hash
+      operation: hashing
+    sha384:
+      algorithm: SHA-384
+      primitive: hash
+      operation: hashing
+    sha-384:
+      algorithm: SHA-384
+      primitive: hash
+      operation: hashing
+    sha512:
+      algorithm: SHA-512
+      primitive: hash
+      operation: hashing
+    sha-512:
+      algorithm: SHA-512
+      primitive: hash
+      operation: hashing
+    sha3*:
+      algorithm: SHA-3
+      primitive: hash
+      operation: hashing
+    sha-3*:
+      algorithm: SHA-3
+      primitive: hash
+      operation: hashing
+    hmac*:
+      algorithm: HMAC
+      primitive: mac
+      operation: mac_generation
+    ml-kem*:
+      algorithm: ML-KEM
+      primitive: pqc-kem
+      operation: unspecified
+    ml-dsa*:
+      algorithm: ML-DSA
+      primitive: pqc-signature
+      operation: unspecified
+    slh-dsa*:
+      algorithm: SLH-DSA
+      primitive: pqc-signature
+      operation: unspecified

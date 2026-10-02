@@ -1,0 +1,14 @@
+rule_id: JS-NODE-CRYPTO-DH-002
+rule_version: 1.0.0
+language: js
+description: 'crypto.diffieHellman(): DH/ECDH/X25519 depending on key type (unresolved)'
+library: node:crypto
+api: diffieHellman
+algorithm: DH/ECDH
+primitive: public-key
+operation: key_agreement
+confidence: 0.8
+match:
+  type: regex
+  file_requires: '[''"](?:node:)?crypto[''"]'
+  pattern: \bdiffieHellman\s*\(\s*\{

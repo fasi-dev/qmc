@@ -1,0 +1,20 @@
+rule_id: PY-OQS-KEM-001
+rule_version: 1.0.0
+language: python
+description: ML-KEM via liboqs (already PQC)
+library: liboqs
+api: oqs.KeyEncapsulation
+algorithm: ML-KEM
+primitive: pqc-kem
+operation: key_generation
+confidence: 0.97
+match:
+  type: python_call
+  value_from: literal
+  qualified_names:
+  - oqs.KeyEncapsulation
+  literal_args:
+  - pos: 0
+  - kw: alg_name
+  value_map:
+    ml-kem-*: {}

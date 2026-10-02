@@ -1,0 +1,30 @@
+rule_id: CFG-SSH-002
+rule_version: 1.0.0
+language: config
+description: HostKeyAlgorithms names RSA/ECDSA/EdDSA/DSA host keys
+library: openssh
+api: HostKeyAlgorithms
+algorithm: RSA
+primitive: public-key
+operation: signature
+confidence: 0.8
+match:
+  type: directive
+  file_pattern: (?i)(?:^|/)sshd?_config(?:$|\.|\.d/)
+  flags:
+  - IGNORECASE
+  pattern: ^\s*HostKeyAlgorithms\s+(?P<value>\S+)
+  split: '[,\s]+'
+  skip_prefixes:
+  - '-'
+  value_map:
+    ssh-rsa*:
+      algorithm: RSA
+    rsa-sha2-*:
+      algorithm: RSA
+    ecdsa-sha2-*:
+      algorithm: ECDSA
+    ssh-ed25519*:
+      algorithm: EdDSA
+    ssh-dss:
+      algorithm: DSA

@@ -1,0 +1,28 @@
+rule_id: JAVA-JCA-KA-001
+rule_version: 1.0.0
+language: java
+description: KeyAgreement.getInstance(<ECDH|DH|X25519|XDH>) key agreement
+library: java.security
+api: KeyAgreement.getInstance
+algorithm: ECDH
+primitive: public-key
+operation: key_agreement
+confidence: 0.95
+match:
+  type: regex
+  pattern: \bKeyAgreement\s*\.\s*getInstance\s*\(\s*"(?P<alg>[A-Za-z0-9_.+-]+)"
+  value_group: alg
+  value_map:
+    ecdh*:
+      algorithm: ECDH
+    x25519:
+      algorithm: ECDH
+    x448:
+      algorithm: ECDH
+    xdh:
+      algorithm: ECDH
+    dh:
+      algorithm: DH
+    diffiehellman:
+      algorithm: DH
+  file_requires: java\.security|javax\.crypto|org\.bouncycastle

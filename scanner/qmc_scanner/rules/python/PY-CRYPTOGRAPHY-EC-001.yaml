@@ -1,0 +1,20 @@
+rule_id: PY-CRYPTOGRAPHY-EC-001
+rule_version: 1.0.0
+language: python
+description: Generic EC key generation; algorithm resolved from same-file ECDSA/ECDH usage, else left as 'EC' (medium)
+library: cryptography
+api: ec.generate_private_key
+algorithm: EC
+primitive: public-key
+operation: key_generation
+confidence: 0.7
+match:
+  type: python_call
+  qualified_names:
+  - cryptography.hazmat.primitives.asymmetric.ec.generate_private_key
+  sibling_resolution:
+    from: EC
+    map:
+      ECDSA: ECDSA
+      ECDH: ECDH
+    confidence: 0.85

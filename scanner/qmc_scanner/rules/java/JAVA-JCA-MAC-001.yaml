@@ -1,0 +1,14 @@
+rule_id: JAVA-JCA-MAC-001
+rule_version: 1.0.0
+language: java
+description: Mac.getInstance("Hmac...")
+library: javax.crypto
+api: Mac.getInstance
+algorithm: HMAC
+primitive: mac
+operation: mac_generation
+confidence: 0.95
+match:
+  type: regex
+  pattern: \bMac\s*\.\s*getInstance\s*\(\s*"Hmac[A-Za-z0-9-]*"
+  file_requires: java\.security|javax\.crypto|org\.bouncycastle

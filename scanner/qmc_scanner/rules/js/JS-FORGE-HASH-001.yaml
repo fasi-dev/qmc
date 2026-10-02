@@ -1,0 +1,24 @@
+rule_id: JS-FORGE-HASH-001
+rule_version: 1.0.0
+language: js
+description: node-forge message digests
+library: node-forge
+api: forge.md
+algorithm: SHA-256
+primitive: hash
+operation: hashing
+confidence: 0.95
+match:
+  type: regex
+  file_requires: '[''\"]node-forge[''\"]'
+  pattern: \bforge\s*\.\s*md\s*\.\s*(?P<alg>sha1|sha256|sha384|sha512)\s*\.\s*create\b
+  value_group: alg
+  value_map:
+    sha1:
+      algorithm: SHA-1
+    sha256:
+      algorithm: SHA-256
+    sha384:
+      algorithm: SHA-384
+    sha512:
+      algorithm: SHA-512

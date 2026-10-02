@@ -1,0 +1,26 @@
+rule_id: CFG-SSH-001
+rule_version: 1.0.0
+language: config
+description: KexAlgorithms names ECDH or finite-field DH key exchange
+library: openssh
+api: KexAlgorithms
+algorithm: ECDH
+primitive: public-key
+operation: key_agreement
+confidence: 0.8
+match:
+  type: directive
+  file_pattern: (?i)(?:^|/)sshd?_config(?:$|\.|\.d/)
+  flags:
+  - IGNORECASE
+  pattern: ^\s*KexAlgorithms\s+(?P<value>\S+)
+  split: '[,\s]+'
+  skip_prefixes:
+  - '-'
+  value_map:
+    curve25519-sha256*:
+      algorithm: ECDH
+    ecdh-sha2-*:
+      algorithm: ECDH
+    diffie-hellman-group*:
+      algorithm: DH

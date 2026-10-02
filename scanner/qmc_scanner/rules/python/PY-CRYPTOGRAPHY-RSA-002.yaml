@@ -1,0 +1,27 @@
+rule_id: PY-CRYPTOGRAPHY-RSA-002
+rule_version: 1.0.0
+language: python
+description: 'RSA padding scheme use: OAEP (encrypt) / PSS, PKCS1v15 (sign); operation refined by the enclosing .encrypt/.decrypt/.sign/.verify
+  call'
+library: cryptography
+api: padding
+algorithm: RSA
+primitive: public-key
+operation: signature
+confidence: 0.95
+match:
+  type: python_call
+  value_from: fqn
+  operation_by_parent:
+    encrypt: encryption
+    decrypt: decryption
+    sign: signature
+    verify: verification
+    recover: verification
+  value_map:
+    cryptography.hazmat.primitives.asymmetric.padding.OAEP:
+      operation: encryption
+    cryptography.hazmat.primitives.asymmetric.padding.PSS:
+      operation: signature
+    cryptography.hazmat.primitives.asymmetric.padding.PKCS1v15:
+      operation: signature

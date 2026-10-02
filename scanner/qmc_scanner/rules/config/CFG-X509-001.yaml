@@ -1,0 +1,13 @@
+rule_id: CFG-X509-001
+rule_version: 1.0.0
+language: config
+description: 'X.509 certificate in a PEM file: public-key algorithm (and self-signed / expiry facts in the evidence)'
+library: x509
+api: X.509 certificate
+algorithm: RSA
+primitive: public-key
+operation: verification
+confidence: 0.75
+match:
+  type: pem_certificate
+  emit: public_key

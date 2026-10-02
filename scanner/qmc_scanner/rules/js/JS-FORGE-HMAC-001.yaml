@@ -1,0 +1,14 @@
+rule_id: JS-FORGE-HMAC-001
+rule_version: 1.0.0
+language: js
+description: node-forge HMAC
+library: node-forge
+api: forge.hmac.create
+algorithm: HMAC
+primitive: mac
+operation: mac_generation
+confidence: 0.95
+match:
+  type: regex
+  file_requires: '[''\"]node-forge[''\"]'
+  pattern: \bforge\s*\.\s*hmac\s*\.\s*create\b

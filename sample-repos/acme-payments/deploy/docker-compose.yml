@@ -1,0 +1,14 @@
+# Service wiring for the fictional Acme Payments stack (no cryptographic settings here).
+services:
+  payment-api:
+    image: acme-payments/payment-api:1.0.0
+    ports:
+      - "8080:8080"
+    depends_on:
+      - settlement-worker
+  settlement-worker:
+    image: acme-payments/settlement-worker:1.0.0
+  edge:
+    image: acme-payments/edge:1.0.0
+    volumes:
+      - ./nginx/tls.conf:/etc/nginx/conf.d/tls.conf:ro

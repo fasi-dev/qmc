@@ -1,0 +1,23 @@
+rule_id: JAVA-PQC-001
+rule_version: 1.0.0
+language: java
+description: BouncyCastle PQC parameter specs (already PQC)
+library: bouncycastle
+api: ParameterSpec
+algorithm: ML-KEM
+primitive: pqc-kem
+operation: key_generation
+confidence: 0.95
+match:
+  type: regex
+  pattern: \b(?P<alg>MLKEMParameterSpec|MLDSAParameterSpec|SLHDSAParameterSpec)\b
+  value_group: alg
+  value_map:
+    mlkemparameterspec: {}
+    mldsaparameterspec:
+      algorithm: ML-DSA
+      primitive: pqc-signature
+    slhdsaparameterspec:
+      algorithm: SLH-DSA
+      primitive: pqc-signature
+  file_requires: java\.security|javax\.crypto|org\.bouncycastle

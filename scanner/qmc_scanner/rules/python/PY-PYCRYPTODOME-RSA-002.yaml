@@ -1,0 +1,26 @@
+rule_id: PY-PYCRYPTODOME-RSA-002
+rule_version: 1.0.0
+language: python
+description: RSA encryption/signature objects (PyCryptodome)
+library: pycryptodome
+api: RSA
+algorithm: RSA
+primitive: public-key
+operation: signature
+confidence: 0.95
+match:
+  type: python_call
+  value_from: fqn
+  value_map:
+    Crypto.Cipher.PKCS1_OAEP.new:
+      operation: encryption
+    Cryptodome.Cipher.PKCS1_OAEP.new:
+      operation: encryption
+    Crypto.Signature.pkcs1_15.new:
+      operation: signature
+    Crypto.Signature.pss.new:
+      operation: signature
+    Cryptodome.Signature.pkcs1_15.new:
+      operation: signature
+    Cryptodome.Signature.pss.new:
+      operation: signature

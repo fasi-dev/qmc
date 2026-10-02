@@ -1,0 +1,6 @@
+service: payment-api
+owner: payments-team
+data_classification: highly-sensitive
+business_criticality: critical
+internet_exposed: true
+data_lifetime_years: 10

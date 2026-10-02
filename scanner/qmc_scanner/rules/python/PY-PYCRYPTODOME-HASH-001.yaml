@@ -1,0 +1,42 @@
+rule_id: PY-PYCRYPTODOME-HASH-001
+rule_version: 1.0.0
+language: python
+description: PyCryptodome Hash.*.new
+library: pycryptodome
+api: Hash.new
+algorithm: SHA-256
+primitive: hash
+operation: hashing
+confidence: 0.95
+match:
+  type: python_call
+  value_from: fqn
+  value_map:
+    Crypto.Hash.SHA1.new:
+      algorithm: SHA-1
+    Crypto.Hash.SHA256.new:
+      algorithm: SHA-256
+    Crypto.Hash.SHA384.new:
+      algorithm: SHA-384
+    Crypto.Hash.SHA512.new:
+      algorithm: SHA-512
+    Crypto.Hash.SHA3_256.new:
+      algorithm: SHA-3
+    Crypto.Hash.SHA3_384.new:
+      algorithm: SHA-3
+    Crypto.Hash.SHA3_512.new:
+      algorithm: SHA-3
+    Cryptodome.Hash.SHA1.new:
+      algorithm: SHA-1
+    Cryptodome.Hash.SHA256.new:
+      algorithm: SHA-256
+    Cryptodome.Hash.SHA384.new:
+      algorithm: SHA-384
+    Cryptodome.Hash.SHA512.new:
+      algorithm: SHA-512
+    Cryptodome.Hash.SHA3_256.new:
+      algorithm: SHA-3
+    Cryptodome.Hash.SHA3_384.new:
+      algorithm: SHA-3
+    Cryptodome.Hash.SHA3_512.new:
+      algorithm: SHA-3

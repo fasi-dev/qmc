@@ -1,0 +1,13 @@
+rule_id: CFG-X509-002
+rule_version: 1.0.0
+language: config
+description: X.509 certificate signed with SHA-1 (classical hygiene, not quantum)
+library: x509
+api: X.509 certificate
+algorithm: SHA-1
+primitive: hash
+operation: hashing
+confidence: 0.75
+match:
+  type: pem_certificate
+  emit: sha1_signature

@@ -1,0 +1,44 @@
+rule_id: JS-NODE-CRYPTO-KEYPAIR-001
+rule_version: 1.0.0
+language: js
+description: crypto.generateKeyPair(Sync)(<type>)
+library: node:crypto
+api: generateKeyPair
+algorithm: RSA
+primitive: public-key
+operation: key_generation
+confidence: 0.95
+match:
+  type: regex
+  file_requires: '[''"](?:node:)?crypto[''"]'
+  pattern: \bgenerateKeyPair(?:Sync)?\s*\(\s*['\"](?P<alg>rsa-pss|rsa|dsa|ec|ed25519|ed448|x25519|x448|dh)['\"]
+  value_group: alg
+  key_size_after:
+    window: 300
+    pattern: modulusLength\s*:\s*(?P<bits>\d{3,5})
+  sibling_resolution:
+    from: EC
+    map:
+      ECDSA: ECDSA
+      ECDH: ECDH
+    confidence: 0.85
+  value_map:
+    rsa:
+      algorithm: RSA
+    rsa-pss:
+      algorithm: RSA
+    dsa:
+      algorithm: DSA
+    ec:
+      algorithm: EC
+      confidence: 0.7
+    ed25519:
+      algorithm: EdDSA
+    ed448:
+      algorithm: EdDSA
+    x25519:
+      algorithm: ECDH
+    x448:
+      algorithm: ECDH
+    dh:
+      algorithm: DH

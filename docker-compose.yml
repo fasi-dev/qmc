@@ -1,0 +1,34 @@
+# Quantum Migration Copilot - local demo stack (single tenant, localhost only)
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      QMC_DATA_DIR: /data
+      QMC_LLM_BACKEND: "none"   # none = deterministic template Copilot (default)
+    volumes:
+      - qmc-data:/data
+    # Hardening for the web tier; the scanner sandbox (no network, RO fs, rlimits)
+    # is added in Phase 2/3 when the scanner worker exists (see 04_THREAT_MODEL).
+    user: "10001:10001"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: "http://localhost:8000"
+    depends_on:
+      - backend
+
+volumes:
+  qmc-data:

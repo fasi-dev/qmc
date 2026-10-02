@@ -1,0 +1,21 @@
+rule_id: JAVA-JCA-CIPHER-001
+rule_version: 1.0.0
+language: java
+description: Cipher.getInstance("RSA...") public-key encryption / key transport
+library: javax.crypto
+api: Cipher.getInstance
+algorithm: RSA
+primitive: public-key
+operation: encryption
+confidence: 0.95
+match:
+  type: regex
+  pattern: \bCipher\s*\.\s*getInstance\s*\(\s*"(?P<alg>RSA[A-Za-z0-9/_.+-]*)"
+  refine:
+  - window: 400
+    pattern: \bENCRYPT_MODE\b|\bWRAP_MODE\b
+    operation: encryption
+  - window: 400
+    pattern: \bDECRYPT_MODE\b|\bUNWRAP_MODE\b
+    operation: decryption
+  file_requires: java\.security|javax\.crypto|org\.bouncycastle

@@ -1,0 +1,18 @@
+rule_id: JAVA-JCA-SIG-002
+rule_version: 1.0.0
+language: java
+description: SHA-1 used inside a signature algorithm name (SHA1withRSA etc.)
+library: java.security
+api: Signature.getInstance
+algorithm: SHA-1
+primitive: hash
+operation: hashing
+confidence: 0.95
+match:
+  type: regex
+  pattern: \bSignature\s*\.\s*getInstance\s*\(\s*"(?P<alg>[A-Za-z0-9_.+-]+)"
+  value_group: alg
+  value_map:
+    sha1with*: {}
+    sha-1with*: {}
+  file_requires: java\.security|javax\.crypto|org\.bouncycastle

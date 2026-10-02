@@ -1,0 +1,23 @@
+rule_id: PY-OQS-SIG-001
+rule_version: 1.0.0
+language: python
+description: ML-DSA / SLH-DSA via liboqs (already PQC)
+library: liboqs
+api: oqs.Signature
+algorithm: ML-DSA
+primitive: pqc-signature
+operation: key_generation
+confidence: 0.97
+match:
+  type: python_call
+  value_from: literal
+  qualified_names:
+  - oqs.Signature
+  literal_args:
+  - pos: 0
+  - kw: alg_name
+  value_map:
+    ml-dsa-*:
+      algorithm: ML-DSA
+    slh-dsa-*:
+      algorithm: SLH-DSA

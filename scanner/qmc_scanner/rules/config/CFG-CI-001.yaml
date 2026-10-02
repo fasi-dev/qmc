@@ -1,0 +1,25 @@
+rule_id: CFG-CI-001
+rule_version: 1.0.0
+language: config
+description: CI pipeline step copying certificate or key material (cp/mv/install/copy/scp)
+library: ci
+api: cp/mv/install
+algorithm: TLS
+primitive: protocol
+operation: config
+confidence: 0.75
+match:
+  type: directive
+  file_pattern: (?i)(?:^|/)\.github/workflows/[^/]+\.ya?ml$|(?:^|/)\.gitlab-ci\.ya?ml$|(?:^|/)\.circleci/config\.ya?ml$|(?:^|/)azure-pipelines\.ya?ml$|(?:^|/)jenkinsfile$
+  pattern: \b(?:cp|mv|install|copy|scp)\s+(?P<value>.+)$
+  split: \s+
+  skip_prefixes:
+  - '-'
+  value_map:
+    '*.crt': {}
+    '*.pem': {}
+    '*.cer': {}
+    '*.cert': {}
+    '*.key': {}
+    '*.p12': {}
+    '*.pfx': {}

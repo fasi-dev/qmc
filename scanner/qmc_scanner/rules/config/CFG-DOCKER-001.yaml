@@ -1,0 +1,25 @@
+rule_id: CFG-DOCKER-001
+rule_version: 1.0.0
+language: config
+description: Dockerfile COPY/ADD of certificate or key material (cert copy step)
+library: docker
+api: COPY/ADD
+algorithm: TLS
+primitive: protocol
+operation: config
+confidence: 0.8
+match:
+  type: directive
+  file_pattern: (?i)(?:^|/)dockerfile(?:\.[^/]*)?$|\.dockerfile$
+  pattern: (?i)^\s*(?:COPY|ADD)\s+(?P<value>.+)$
+  split: \s+
+  skip_prefixes:
+  - --
+  value_map:
+    '*.crt': {}
+    '*.pem': {}
+    '*.cer': {}
+    '*.cert': {}
+    '*.key': {}
+    '*.p12': {}
+    '*.pfx': {}

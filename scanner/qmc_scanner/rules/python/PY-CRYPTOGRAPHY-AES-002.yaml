@@ -1,0 +1,18 @@
+rule_id: PY-CRYPTOGRAPHY-AES-002
+rule_version: 1.0.0
+language: python
+description: AES-GCM/CCM key generation (records bit_length)
+library: cryptography
+api: AESGCM.generate_key
+algorithm: AES
+primitive: symmetric
+operation: key_generation
+confidence: 0.95
+match:
+  type: python_call
+  qualified_names:
+  - cryptography.hazmat.primitives.ciphers.aead.AESGCM.generate_key
+  - cryptography.hazmat.primitives.ciphers.aead.AESCCM.generate_key
+  key_size:
+    kw: bit_length
+    pos: 0

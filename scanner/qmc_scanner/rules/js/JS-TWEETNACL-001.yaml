@@ -1,0 +1,23 @@
+rule_id: JS-TWEETNACL-001
+rule_version: 1.0.0
+language: js
+description: tweetnacl Ed25519 signatures
+library: tweetnacl
+api: nacl.sign
+algorithm: EdDSA
+primitive: public-key
+operation: signature
+confidence: 0.95
+match:
+  type: regex
+  file_requires: '[''\"]tweetnacl[''\"]'
+  pattern: \bnacl\s*\.\s*sign(?:\s*\.\s*(?P<alg>keyPair|detached|open))?\b(?!\s*\.\s*(?:keyPair|detached|open))
+  value_group: alg
+  value_map:
+    ? ''
+    : {}
+    keypair:
+      operation: key_generation
+    detached: {}
+    open:
+      operation: verification

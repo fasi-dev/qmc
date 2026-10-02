@@ -1,0 +1,29 @@
+rule_id: CFG-STRUCT-TLS-002
+rule_version: 1.0.0
+language: config
+description: Deprecated TLS/SSL version string under min_version / protocols keys (value must name TLS/SSL explicitly)
+library: config
+api: min_version
+algorithm: TLS
+primitive: protocol
+operation: config
+confidence: 0.85
+match:
+  type: structured
+  key_pattern: (?i)^(?:min(?:imum)?[_-]?(?:version|protocol)|protocols?)$
+  split: '[\s,]+'
+  value_map:
+    tlsv1: {}
+    tlsv1.0: {}
+    tlsv1_0: {}
+    tls1: {}
+    tls1.0: {}
+    tls10: {}
+    tlsv1.1: {}
+    tlsv1_1: {}
+    tls1.1: {}
+    tls11: {}
+    sslv2: {}
+    sslv3: {}
+    ssl2: {}
+    ssl3: {}

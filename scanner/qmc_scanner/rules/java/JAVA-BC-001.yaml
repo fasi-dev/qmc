@@ -1,0 +1,112 @@
+rule_id: JAVA-BC-001
+rule_version: 1.0.0
+language: java
+description: Bouncy Castle lightweight API classes
+library: bouncycastle
+api: BouncyCastle
+algorithm: RSA
+primitive: public-key
+operation: key_generation
+confidence: 0.92
+match:
+  type: regex
+  file_requires: org\.bouncycastle
+  pattern: \bnew\s+(?P<alg>RSAKeyPairGenerator|RSAKeyGenerationParameters|PSSSigner|RSADigestSigner|RSAEngine|RSABlindedEngine|ECDSASigner|ECKeyPairGenerator|ECDHBasicAgreement|ECDHCBasicAgreement|X25519Agreement|X448Agreement|Ed25519Signer|Ed448Signer|DSASigner|DHBasicAgreement|DHKeyPairGenerator|AESEngine|AESLightEngine|AESFastEngine|SHA1Digest|SHA256Digest|SHA384Digest|SHA512Digest|SHA3Digest|HMac)\s*\(
+  value_group: alg
+  sibling_resolution:
+    from: EC
+    map:
+      ECDSA: ECDSA
+      ECDH: ECDH
+    confidence: 0.85
+  value_map:
+    RSAKeyPairGenerator:
+      algorithm: RSA
+      operation: key_generation
+    RSAKeyGenerationParameters:
+      algorithm: RSA
+      operation: key_generation
+    PSSSigner:
+      algorithm: RSA
+      operation: signature
+    RSADigestSigner:
+      algorithm: RSA
+      operation: signature
+    RSAEngine:
+      algorithm: RSA
+      operation: encryption
+      confidence: 0.85
+    RSABlindedEngine:
+      algorithm: RSA
+      operation: encryption
+      confidence: 0.85
+    ECDSASigner:
+      algorithm: ECDSA
+      operation: signature
+    ECKeyPairGenerator:
+      algorithm: EC
+      operation: key_generation
+      confidence: 0.7
+    ECDHBasicAgreement:
+      algorithm: ECDH
+      operation: key_agreement
+    ECDHCBasicAgreement:
+      algorithm: ECDH
+      operation: key_agreement
+    X25519Agreement:
+      algorithm: ECDH
+      operation: key_agreement
+    X448Agreement:
+      algorithm: ECDH
+      operation: key_agreement
+    Ed25519Signer:
+      algorithm: EdDSA
+      operation: signature
+    Ed448Signer:
+      algorithm: EdDSA
+      operation: signature
+    DSASigner:
+      algorithm: DSA
+      operation: signature
+    DHBasicAgreement:
+      algorithm: DH
+      operation: key_agreement
+    DHKeyPairGenerator:
+      algorithm: DH
+      operation: key_generation
+    AESEngine:
+      algorithm: AES
+      primitive: symmetric
+      operation: encryption
+    AESLightEngine:
+      algorithm: AES
+      primitive: symmetric
+      operation: encryption
+    AESFastEngine:
+      algorithm: AES
+      primitive: symmetric
+      operation: encryption
+    SHA1Digest:
+      algorithm: SHA-1
+      primitive: hash
+      operation: hashing
+    SHA256Digest:
+      algorithm: SHA-256
+      primitive: hash
+      operation: hashing
+    SHA384Digest:
+      algorithm: SHA-384
+      primitive: hash
+      operation: hashing
+    SHA512Digest:
+      algorithm: SHA-512
+      primitive: hash
+      operation: hashing
+    SHA3Digest:
+      algorithm: SHA-3
+      primitive: hash
+      operation: hashing
+    HMac:
+      algorithm: HMAC
+      primitive: mac
+      operation: mac_generation

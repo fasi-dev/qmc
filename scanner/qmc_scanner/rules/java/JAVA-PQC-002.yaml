@@ -1,0 +1,14 @@
+rule_id: JAVA-PQC-002
+rule_version: 1.0.0
+language: java
+description: JDK KEM.getInstance("ML-KEM...") (already PQC)
+library: java.security
+api: KEM.getInstance
+algorithm: ML-KEM
+primitive: pqc-kem
+operation: encapsulation
+confidence: 0.97
+match:
+  type: regex
+  file_requires: javax\.crypto|java\.security
+  pattern: \bKEM\s*\.\s*getInstance\s*\(\s*"ML-KEM[A-Za-z0-9-]*"
