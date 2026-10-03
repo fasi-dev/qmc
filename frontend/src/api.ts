@@ -33,7 +33,17 @@ export type Finding = {
   evidence: string; confidence: number; confidence_level: string; quantum_vulnerable: boolean; already_pqc: boolean;
   metadata: { key_size: number | null; comment_only: boolean; in_dead_code: boolean; test_path: boolean };
 };
+export type Plan = {
+  rule_id: string | null; current: string; direction: string; standard: string | null; no_pqc_mapping: boolean; human_review: boolean;
+  human_review_note?: string | null; complexity: number | null; note?: string | null; why?: string | null; caveats: string[];
+  interoperability?: string | null; steps: string[]; honesty: string[]; crypto_agility: string[];
+};
+export type PlanRow = Omit<Plan, "honesty" | "crypto_agility"> & {
+  id: string; rank: number; band: string | null; qmp: number | null; hndl: boolean; service: string; file: string; line_start: number;
+  algorithm: string; operation: string; role: string | null; confidence_level: string;
+};
 export type Detail = {
+  migration: Plan | null;
   finding: Finding; risk: Risk | null; rank: number; band: string | null; qmp: number | null; suppressed: boolean;
   suppression: { reason: string; author: string; at: string } | null; qmp_label: string;
   snippet: { start_line: number; highlight_start: number; highlight_end: number; lines: string[] } | null;
@@ -59,6 +69,7 @@ export const api = {
   summary: (id: string) => j<Summary>(`/api/scans/${id}/summary`),
   findings: (id: string, qs: string) => j<{ findings: Card[]; count: number; total_all: number; facets: Facets }>(`/api/scans/${id}/findings?${qs}`),
   csvUrl: (id: string, qs: string) => `${API}/api/scans/${id}/findings.csv?${qs}`,
+  migration: (id: string) => j<{ rows: PlanRow[]; crypto_agility: string[]; honesty: string[]; qmp_label: string }>(`/api/scans/${id}/migration`),
   finding: (id: string, fid: string) => j<Detail>(`/api/scans/${id}/findings/${fid}`),
   suppress: (id: string, fid: string, reason: string) => j<Detail>(`/api/scans/${id}/findings/${fid}/suppress`,
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason, author: "demo-user" }) }),

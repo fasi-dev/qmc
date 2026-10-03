@@ -102,6 +102,15 @@ def findings(scan_id: str, q: str | None = None, algorithm: str | None = None, p
         db.close()
 
 
+@router.get("/scans/{scan_id}/migration")
+def migration(scan_id: str, s: Settings = Depends(get_settings)) -> dict:
+    db = open_session(s)
+    try:
+        return analysis.migration_plan(db, _sid(scan_id))
+    finally:
+        db.close()
+
+
 @router.get("/scans/{scan_id}/findings.csv", response_class=PlainTextResponse)
 def findings_csv(scan_id: str, q: str | None = None, algorithm: str | None = None, primitive: str | None = None, service: str | None = None,
                  band: str | None = None, confidence: str | None = None, vulnerable: bool | None = None, pqc: bool | None = None,

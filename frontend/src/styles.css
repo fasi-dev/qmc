@@ -91,3 +91,5 @@ input[type="file"] { font: inherit; }
 .kv { display: grid; grid-template-columns: 130px 1fr; gap: 4px 12px; font-size: .85rem; } .kv dt { color: var(--muted); } .kv dd { margin: 0; overflow-wrap: anywhere; }
 .factor { margin: 10px 0; } .factor-h { display: flex; justify-content: space-between; font-size: .85rem; } .calc { background: var(--paper); padding: 8px 12px; border-radius: 6px; font-size: .85rem; }
 .crumb { margin: 0 0 8px; } .empty-state { text-align: center; padding: 40px; } .click a { color: inherit; }
+
+.detailrow td { background: var(--paper); padding: 12px 18px; font-size: .88rem; } .detailrow ul, .detailrow ol { margin: 4px 0 8px; padding-left: 20px; }

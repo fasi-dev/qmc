@@ -18,6 +18,7 @@ from .config import Settings
 from .db import FindingRow, ScanRow
 from .ingestion import IngestionError, load_manifest, purge_tree
 from .ingestion.pipeline import TREE_DIR, workspace_path
+from .migration import CRYPTO_AGILITY, HONESTY, plan_for
 from .risk import LABEL, priority_key, score
 
 SAMPLE_DIR = Path(__file__).resolve().parents[2] / "sample-repos" / "acme-payments"
@@ -208,7 +209,7 @@ def get_finding(db: Session, scan_id: str, fid: str) -> dict:
     r = db.scalars(select(FindingRow).where(FindingRow.scan_id == scan_id, FindingRow.fid == fid)).first()
     if r is None:
         raise IngestionError("finding_not_found", "Finding not found.", 404)
-    return {"finding": r.data, "risk": r.risk, "snippet": r.snippet, "rank": r.rank, "band": r.band, "qmp": r.qmp,
+    return {"finding": r.data, "risk": r.risk, "migration": plan_for(r.data, r.risk), "snippet": r.snippet, "rank": r.rank, "band": r.band, "qmp": r.qmp,
             "suppressed": r.suppressed, "suppression": r.suppression, "qmp_label": LABEL}
 
 
@@ -223,6 +224,25 @@ def set_suppression(db: Session, scan_id: str, fid: str, reason: str | None, aut
         r.suppression = {"reason": reason[:500], "author": (author or "demo-user")[:80], "at": datetime.now(timezone.utc).isoformat()}
     db.commit()
     return get_finding(db, scan_id, fid)
+
+
+def migration_plan(db: Session, scan_id: str) -> dict:
+    """Planner rows (10 section 1.6): current crypto -> role -> candidate -> affected -> complexity -> next steps."""
+    rows = []
+    for r in _rows(db, scan_id):
+        if r.suppressed or r.comment_only or r.test_path:
+            continue
+        m = plan_for(r.data, r.risk)
+        if m is None:
+            continue
+        rows.append({"id": r.fid, "rank": r.rank, "band": r.band, "qmp": r.qmp, "hndl": r.hndl, "service": r.service,
+                     "file": r.file, "line_start": r.data["line_start"], "algorithm": r.algorithm, "operation": r.operation,
+                     "role": (r.risk or {}).get("role"), "rule_id": m["rule_id"], "current": m["current"], "direction": m["direction"],
+                     "standard": m["standard"], "no_pqc_mapping": m["no_pqc_mapping"], "human_review": m["human_review"],
+                     "complexity": m["complexity"], "note": m.get("note"), "why": m.get("why"), "caveats": m.get("caveats", []),
+                     "interoperability": m.get("interoperability"), "steps": m.get("steps", []), "human_review_note": m.get("human_review_note"),
+                     "confidence_level": r.confidence_level})
+    return {"rows": rows, "crypto_agility": CRYPTO_AGILITY, "honesty": HONESTY, "qmp_label": LABEL}
 
 
 def export_csv(rows: list[dict]) -> str:

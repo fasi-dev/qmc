@@ -10,7 +10,7 @@ export default function FindingDetail({ scanId, fid }: { scanId: string; fid: st
   useEffect(() => { setD(null); api.finding(scanId, fid).then(setD).catch((e: Error) => setError(e.message)); }, [scanId, fid]);
   if (error) return <p className="error" role="alert">{error} <a href="#/inventory">Back to inventory</a></p>;
   if (!d) return <p className="dim">Loading…</p>;
-  const { finding: f, risk: r, snippet: sn } = d;
+  const { finding: f, risk: r, snippet: sn, migration: m } = d;
 
   async function toggleSuppress() {
     try {
@@ -90,6 +90,20 @@ export default function FindingDetail({ scanId, fid }: { scanId: string; fid: st
           ) : <p className="dim">Comment and documentation mentions are not scored: there is no executable evidence.</p>}
         </section>
       </div>
+      {m && (
+        <section className="panel">
+          <h3>Migration candidate</h3>
+          <p><b>{m.direction}</b>{m.rule_id && <span className="dim"> · rule {m.rule_id}</span>}</p>
+          <p className="dim">{m.current}</p>
+          {m.note && <div className="callout">{m.note}</div>}
+          {m.why && <p>{m.why}</p>}
+          {m.caveats.length > 0 && <><b>Caveats</b><ul>{m.caveats.map((c) => <li key={c}>{c}</li>)}</ul></>}
+          {m.interoperability && <p><b>Interoperability:</b> {m.interoperability}</p>}
+          {m.steps.length > 0 && <><b>Steps</b><ol>{m.steps.map((x) => <li key={x}>{x}</li>)}</ol></>}
+          {m.human_review && <div className="callout" role="note">Requires human review. This is a candidate direction, not a certification of security.</div>}
+          <p className="fine">{m.honesty[1]}</p>
+        </section>
+      )}
       <p className="fine">Static-analysis estimate from deterministic rules. Not a security certification.</p>
     </div>
   );

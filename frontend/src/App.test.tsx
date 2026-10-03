@@ -105,4 +105,32 @@ describe("demo flow: scan -> dashboard -> inventory -> finding detail", () => {
     fireEvent.click(await screen.findByText("Restore finding"));
     await waitFor(() => expect(screen.getByText("Mark false positive")).toBeTruthy());
   });
+
+  it("finding detail shows the deterministic migration candidate (role-aware, human review)", async () => {
+    go("#/inventory");
+    render(<App />);
+    fireEvent.change(await screen.findByPlaceholderText(/file, algorithm/), { target: { value: "x25519" } });
+    await waitFor(() => expect(document.querySelectorAll("table.inv tbody tr.click").length).toBe(1));
+    fireEvent.click(document.querySelector("table.inv tbody tr.click")!);
+    expect(await screen.findByText("Migration candidate")).toBeTruthy();
+    expect(document.body.textContent).toMatch(/ML-KEM \(FIPS 203\)/);
+    expect(document.body.textContent).toMatch(/KEM -> KDF -> symmetric/);
+    expect(document.body.textContent).toMatch(/Requires human review/);
+  });
+
+  it("migration planner: KE -> ML-KEM, signatures -> ML-DSA/SLH-DSA, AES/SHA have no PQC mapping", async () => {
+    go("#/planner");
+    render(<App />);
+    await waitFor(() => expect(document.querySelectorAll("table.inv tbody tr.click").length).toBeGreaterThan(8));
+    const text = document.querySelector("table.inv tbody")!.textContent ?? "";
+    expect(text).toMatch(/ML-KEM \(FIPS 203\)/);
+    expect(text).toMatch(/ML-DSA \(FIPS 204\) or SLH-DSA \(FIPS 205\)/);
+    expect(text).toMatch(/No PQC migration required/);
+    const aes = [...document.querySelectorAll("table.inv tbody tr.click")].find((r) => /AES/.test(r.textContent ?? ""))!;
+    expect(aes.textContent).not.toMatch(/ML-KEM|ML-DSA/);
+    fireEvent.click(document.querySelector("table.inv tbody tr.click")!);
+    expect(document.querySelector(".detailrow")).toBeTruthy();
+    expect(screen.getByText(/Candidate directions, not certifications/)).toBeTruthy();
+    expect(screen.getByText(/Crypto-agility recommendations/)).toBeTruthy();
+  });
 });
