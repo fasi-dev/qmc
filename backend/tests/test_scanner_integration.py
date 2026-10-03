@@ -27,6 +27,11 @@ def acme_zip(extra: dict | None = None) -> bytes:
     return buf.getvalue()
 
 
+def res_as_of(res):
+    from datetime import datetime, timezone
+    return datetime.fromisoformat(res.as_of).replace(tzinfo=timezone.utc)
+
+
 def ingest_and_scan(tmp_path, settings, data):
     ws = tmp_path / "ws"; ws.mkdir()
     up = ws / "u.zip"; up.write_bytes(data)
@@ -38,10 +43,13 @@ def ingest_and_scan(tmp_path, settings, data):
 
 def test_acme_through_ingestion_matches_direct_scan_and_uses_service_yaml(tmp_path, settings):
     manifest, res = ingest_and_scan(tmp_path, settings, acme_zip())
-    direct = scan_tree(FIXTURE, scan_id=manifest["scan_id"], services=[{"service": "payment-api", "root": ""}], repo_name="acme-payments")
-    assert manifest["stripped_root_dir"] == "acme-payments" and manifest["services"][0]["service"] == "payment-api"
+    direct = scan_tree(FIXTURE, scan_id=manifest["scan_id"], services=manifest["services"], repo_name="acme-payments", as_of=res_as_of(res))
+    assert manifest["stripped_root_dir"] == "acme-payments"
+    assert sorted(s["service"] for s in manifest["services"]) == ["dev-scripts", "payment-api", "settlement-worker"]
     assert res.to_dict() == direct.to_dict()
-    assert {f["service"] for f in res.findings} == {"payment-api"}
+    by_file = {f["file"]: f["service"] for f in res.findings}
+    assert by_file["src/payments/keys.py"] == "payment-api" and by_file["scripts/gen_test_keys.py"] == "dev-scripts"
+    assert by_file["src/legacy/old_hash.py"] == "settlement-worker"
 
 
 def test_secrets_never_reach_findings_and_line_numbers_survive_redaction(tmp_path, settings):

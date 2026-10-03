@@ -13,7 +13,9 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, Query, Request
 from starlette.concurrency import run_in_threadpool
 
+from . import analysis
 from .config import Settings, get_settings
+from .db import open_session
 from .ingestion import IngestionError, delete_scan, ingest_archive, load_manifest, purge_tree
 from .ingestion.pipeline import workspace_path
 
@@ -50,6 +52,11 @@ async def create_scan(request: Request, filename: str = Query("upload", max_leng
         if size == 0:
             raise IngestionError("empty_archive", "The upload was empty.", 400)
         manifest = await run_in_threadpool(ingest_archive, upload, ws, scan_id, filename, s)
+        db = open_session(s)
+        try:
+            analysis.register_scan(db, manifest)
+        finally:
+            db.close()
         return _summary(manifest)
     except IngestionError:
         shutil.rmtree(ws, ignore_errors=True)
@@ -76,4 +83,9 @@ def purge_scan_tree(scan_id: str, s: Settings = Depends(get_settings)) -> dict:
 @router.delete("/{scan_id}")
 def delete_scan_route(scan_id: str, s: Settings = Depends(get_settings)) -> dict:
     delete_scan(scan_id, s)
+    db = open_session(s)
+    try:
+        analysis.delete_rows(db, scan_id)
+    finally:
+        db.close()
     return {"scan_id": scan_id, "deleted": True}

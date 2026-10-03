@@ -27,7 +27,7 @@ def pick(res, file, algorithm, operation=None, comment_only=False):
 
 
 def test_scan_complete_and_fast(res):
-    assert res.status == "complete" and res.files_skipped == [] and res.files_scanned == {"doc": 2, "java": 1, "pem": 1, "python": 6, "text": 1, "yaml": 2}
+    assert res.status == "complete" and res.files_skipped == [] and res.files_scanned == {"doc": 2, "java": 1, "pem": 1, "python": 6, "text": 1, "yaml": 4}
 
 
 def test_row1_ecdh_key_establishment(res):

@@ -1,0 +1,6 @@
+service: dev-scripts
+owner: platform-team
+data_classification: internal
+business_criticality: low
+internet_exposed: false
+data_lifetime_years: 1

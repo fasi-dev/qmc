@@ -6,6 +6,7 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 COPY scanner/ scanner/
 RUN pip install --no-cache-dir ./scanner
 COPY backend/ backend/
+COPY sample-repos/ sample-repos/
 # liboqs / liboqs-python are added in Phase 8 (PQC Lab).
 # Non-root runtime user; /data (scan workspaces) must be writable by it.
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin qmc \

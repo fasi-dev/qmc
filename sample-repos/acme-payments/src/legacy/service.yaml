@@ -1,0 +1,6 @@
+service: settlement-worker
+owner: payments-team
+data_classification: highly-sensitive
+business_criticality: high
+internet_exposed: false
+data_lifetime_years: 10
