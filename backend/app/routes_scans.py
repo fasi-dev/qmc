@@ -17,7 +17,7 @@ from . import analysis
 from .config import Settings, get_settings
 from .db import open_session
 from .ingestion import IngestionError, delete_scan, ingest_archive, load_manifest, purge_tree
-from .ingestion.pipeline import workspace_path
+from .ingestion.pipeline import create_workspace, workspace_path
 
 log = logging.getLogger("qmc.ingestion")
 router = APIRouter(prefix="/api/scans", tags=["scans"])
@@ -41,7 +41,7 @@ async def create_scan(request: Request, filename: str = Query("upload", max_leng
     ws = s.scans_dir / scan_id
     upload = ws / "upload.bin"
     try:
-        ws.mkdir(mode=0o700, parents=True)
+        create_workspace(ws)
         size = 0
         with open(upload, "wb") as f:
             async for chunk in request.stream():

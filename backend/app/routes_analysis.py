@@ -13,7 +13,7 @@ from . import analysis
 from .config import Settings, get_settings
 from .db import ScanRow, open_session
 from .ingestion import IngestionError, ingest_archive
-from .ingestion.pipeline import parse_scan_id
+from .ingestion.pipeline import create_workspace, parse_scan_id
 
 router = APIRouter(prefix="/api", tags=["analysis"])
 
@@ -41,7 +41,7 @@ async def load_demo(s: Settings = Depends(get_settings)) -> dict:
     """One click: bundled Acme Payments repo -> real ingestion -> real scan -> risk scoring."""
     scan_id = str(uuid.uuid4())
     ws = s.scans_dir / scan_id
-    ws.mkdir(mode=0o700, parents=True)
+    create_workspace(ws)
     up = ws / "upload.bin"
     try:
         up.write_bytes(analysis.sample_zip_bytes())

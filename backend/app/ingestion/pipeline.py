@@ -26,6 +26,12 @@ TREE_DIR = "tree"
 MANIFEST = "manifest.json"
 
 
+def create_workspace(path: Path) -> None:
+    path.mkdir(mode=0o700, parents=True)
+    if os.name == "posix":
+        os.chmod(path, 0o700)
+
+
 def parse_scan_id(value: str) -> str:
     """Validate a scan id (prevents path traversal via the URL). Raises IngestionError(404)."""
     try:

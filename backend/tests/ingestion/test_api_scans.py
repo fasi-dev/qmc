@@ -58,7 +58,8 @@ def test_raw_upload_is_deleted_and_workspace_is_uuid_dir(client, settings):
     sid = client.post("/api/scans", content=secret_repo()).json()["scan_id"]
     ws = settings.scans_dir / sid
     assert sorted(p.name for p in ws.iterdir()) == ["manifest.json", "tree"]
-    assert oct(ws.stat().st_mode & 0o777) == "0o700"
+    if os.name == "posix":
+        assert oct(ws.stat().st_mode & 0o777) == "0o700"
 
 
 def test_get_manifest_and_files_flag(client):
