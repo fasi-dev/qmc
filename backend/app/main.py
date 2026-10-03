@@ -14,7 +14,7 @@ app = FastAPI(title="Quantum Migration Copilot", version="0.4.0")
 # Single-tenant local demo: allow the Vite dev server only.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "https://qmc-frontend.onrender.com"],
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
