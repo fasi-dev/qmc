@@ -119,3 +119,36 @@ Spec issues found during the readiness check, and the default resolution used.
     (settlement-worker service, nginx/TLS, cert, gRPC) and the demo narration must use computed numbers.
 30. **Draft fixture** lives in `sample-repos/acme-payments/` (code rows only). Authored so evidence strings are
     real API calls as `09` section 5 requires; no secrets. Expected behaviour from `09` was not changed.
+
+---
+## Demo-prototype build decisions (persistence, risk, API, UI, migration, report)
+
+31. **Fixture metadata.** Added `scripts/service.yaml` (dev-scripts: internal, low, not exposed, 1y) and
+    `src/legacy/service.yaml` (settlement-worker) to the Acme fixture. Needed for the `06` Example B/C contrast (dev script
+    vs payment-api) and `10`'s planner row (SHA-1 in settlement-worker). Consistent with `09` section 3 (nearest service.yaml).
+32. **Persistence.** SQLite via SQLAlchemy (plain columns + JSON, PostgreSQL-compatible). A scan is analyzed once; after analysis the
+    extracted tree is deleted (`04` section 5) and only findings, risk, evidence and a +-3-line redacted snippet are kept.
+    `manifest.json` stays on disk. Re-analysis returns 409.
+33. **Risk inputs not fixed by `06`.** Role derivation (`risk.role_of`): ECDH/DH => key establishment; ECDSA/EdDSA/DSA => signature;
+    RSA by operation, else by context (authentication/code-signing/integrity => signature); RSA key generation with unknown context =>
+    role "unclear", scored QE 4 (conservative, matches `06` Example B). Medium/low confidence public-key => QE 2 (`06` F1 row 3).
+    Migration complexity: PQC 0; protocol config 0; X.509 3; key establishment 2; authentication signatures 2; code-signing 3; other 1.
+    IE: `internet_exposed` true => 3, false => 0 (no private-network/partner signal exists in service.yaml).
+34. **Classical-hygiene cap.** `09` expects SHA-1 / TLS 1.0 / weak ciphers to be "Review", but the `06` formula alone would make them
+    High/Critical in a sensitive service. Implemented as a guard: QE == 1 (SHA-1, deprecated TLS, weak ciphers, AES-128) caps the
+    band at Review with an explicit "classical hygiene" badge. The numeric QMP is still shown. Interpretation of `09`, not a new score.
+35. **Ranking** is by displayed band, then QMP, raw score, HNDL, QE, scanner order (so a capped "Review 20" never outranks a Critical).
+36. **Critical counts.** The `06` formula yields Critical for every high-confidence public-key finding in payment-api (DS4/IE3/BC3), so
+    the demo shows 5 Critical (not `10`'s "2 Critical"; `09` also lists some as "High"). Computed numbers are shown everywhere
+    (reaffirms #1/#2). Real Acme output: 19 crypto findings, 10 quantum-vulnerable, 5 Critical, 3 elevated HNDL.
+37. **Comment/doc mentions** are never scored, hidden from default inventory views with a visible count (toggle to show).
+38. **HNDL** is role-based (`06` does not condition it on confidence), so ECDHE named in an nginx `ssl_ciphers` line (Medium confidence,
+    band capped at Review) still carries the HNDL flag in a 10-year sensitive service.
+39. **Migration rules** follow `07` exactly; undetermined roles (RSA key generation without context, generic EC) go to R-12 manual review
+    and show which directions are possible without choosing one. TLS/protocol hygiene rows show "No PQC mapping: classical hygiene"
+    (presentation only; `07` has no rule for them, so no direction is invented).
+40. **Certificate expiry** is evaluated against the scan's UTC date (`as_of`, recorded in the analysis). Scanner output is deterministic
+    for a given `as_of`.
+41. **UI.** Hash routing, scan id in localStorage, no UI framework. Not verified in a real browser here: tested with jsdom + Testing Library
+    driving the real app against a real backend process (`frontend/vitest.global.ts`). Docker images were not built in this environment.
+42. **Report** is Markdown only (PDF deferred). **Not built:** dependency graph, PQC Lab, AI Copilot (see README Status).

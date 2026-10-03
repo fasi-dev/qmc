@@ -38,6 +38,7 @@ describe("demo flow: scan -> dashboard -> inventory -> finding detail", () => {
     expect(first.textContent).toMatch(/Critical · 20/);
     expect(first.textContent).toMatch(/ECDH/);
     expect(first.textContent).toMatch(/HNDL elevated/);
+    expect(screen.getByText("Download report (Markdown)").getAttribute("href")).toMatch(/\/report\.md$/);
     expect(screen.getByText("Services and migration status")).toBeTruthy();
     expect(screen.getByText("settlement-worker")).toBeTruthy();
     expect(document.body.textContent).toMatch(/not a security certification/i);

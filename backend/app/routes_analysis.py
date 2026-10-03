@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Body, Depends, Query
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, Response
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
@@ -109,6 +109,17 @@ def migration(scan_id: str, s: Settings = Depends(get_settings)) -> dict:
         return analysis.migration_plan(db, _sid(scan_id))
     finally:
         db.close()
+
+
+@router.get("/scans/{scan_id}/report.md")
+def report(scan_id: str, s: Settings = Depends(get_settings)) -> Response:
+    from .report import build_report
+    db = open_session(s)
+    try:
+        md = build_report(db, _sid(scan_id))
+    finally:
+        db.close()
+    return Response(md, media_type="text/markdown; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="qmc-report-{scan_id[:8]}.md"'})
 
 
 @router.get("/scans/{scan_id}/findings.csv", response_class=PlainTextResponse)

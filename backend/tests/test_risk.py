@@ -128,3 +128,10 @@ def test_priority_ordering_puts_hndl_critical_first():
     hi, lo = F(id="CRYPTO-002"), F(id="CRYPTO-001", algorithm="ECDSA", operation="signature", context="authentication")
     order = sorted([(lo, score(lo, PAYMENT)), (hi, score(hi, PAYMENT))], key=lambda p: priority_key(*p))
     assert order[0][0]["id"] == "CRYPTO-002"
+
+
+def test_ranking_follows_displayed_band_before_number():
+    capped = F(id="CRYPTO-001", confidence_level="medium")             # QMP 20 but capped to Review
+    crit = F(id="CRYPTO-002", algorithm="ECDSA", operation="signature", context="authentication")   # QMP 20, Critical
+    order = sorted([(capped, score(capped, PAYMENT)), (crit, score(crit, PAYMENT))], key=lambda p: priority_key(*p))
+    assert [o[0]["id"] for o in order] == ["CRYPTO-002", "CRYPTO-001"]

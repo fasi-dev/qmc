@@ -158,7 +158,7 @@ def score(f: dict, service_meta: dict | None) -> dict | None:
 
 
 def priority_key(f: dict, r: dict | None) -> tuple:
-    """Deterministic ranking: scored findings first by QMP, raw, HNDL, QE; unscored last; then scanner order."""
+    """Deterministic ranking: scored findings first, by DISPLAYED band, then QMP, raw score, HNDL, QE; then scanner order."""
     if r is None:
-        return (1, 0, 0, 0, 0, f["id"])
-    return (0, -r["qmp"], -r["raw"], -int(r["hndl"]["flag"]), -r["factors"]["QE"]["value"], f["id"])
+        return (1, 0, 0, 0, 0, 0, f["id"])
+    return (0, -BANDS.index(r["band"]), -r["qmp"], -r["raw"], -int(r["hndl"]["flag"]), -r["factors"]["QE"]["value"], f["id"])

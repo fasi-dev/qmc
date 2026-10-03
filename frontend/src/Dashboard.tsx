@@ -1,4 +1,4 @@
-import type { Summary } from "./api";
+import { API, type Summary } from "./api";
 import { Band, BAND_COLOR, Badge, Kpi, pretty, where } from "./ui";
 
 export default function Dashboard({ s }: { s: Summary }) {
@@ -11,6 +11,11 @@ export default function Dashboard({ s }: { s: Summary }) {
         <strong>{s.scan.repo_name}</strong> · scanned {new Date(s.scan.created_at).toLocaleString()} · engine {s.scan.analysis?.engine_version} ·
         {" "}{s.scan.ingestion.stats.file_count} files ingested · scan <code>{s.scan.id.slice(0, 8)}</code>
       </p>
+      <div className="row">
+        <a className="btn primary" href={`${API}/api/scans/${s.scan.id}/report.md`}>Download report (Markdown)</a>
+        <a className="btn" href="#/planner">Migration planner</a>
+        <a className="btn" href="#/inventory">Crypto inventory</a>
+      </div>
       <div className="kpis">
         <Kpi value={t.crypto_findings} label="crypto assets found" hint="Executable crypto usages and crypto configuration (comments excluded)" />
         <Kpi value={t.quantum_vulnerable} label="quantum-vulnerable" tone="var(--band-high)" hint="Public-key crypto vulnerable to a FUTURE quantum computer (not broken today)" />

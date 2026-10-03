@@ -2,9 +2,46 @@
 
 *Discover your cryptography. Understand your quantum exposure. Plan your migration.*
 
-Prototype decision-support tool for post-quantum cryptography migration planning.
-Deterministic static analysis; the AI Copilot (later phase) is advisory only.
-Specification: `docs/knowledge-pack/` (start with `DOCUMENT_MAP.md`).
+Prototype decision-support tool for post-quantum cryptography migration planning. Upload a repository; it is safely ingested,
+statically scanned (deterministic, no AI), scored with the transparent **Quantum Migration Priority** model, and turned into an
+inventory, risk ranking, migration plan and report. Specification: `docs/knowledge-pack/` (start with `DOCUMENT_MAP.md`).
+Demo script with real numbers: `docs/DEMO.md`.
+
+## Status
+
+| Area | State |
+|---|---|
+| Safe ingestion (zip/tar, bombs, traversal, symlinks, redaction) | done, adversarially tested |
+| Scanner: Python (AST), Java, JS/TS, YAML/JSON, nginx/SSH, Dockerfile/CI, X.509 certificates (74 versioned rules) | done |
+| QMP risk engine (`06`), HNDL flag, guard rules, metadata badges | done |
+| Inventory API + UI (filters, search, CSV, suppression/false positive) | done |
+| Dashboard, finding detail (evidence snippet, factor bars), scanner screen with Acme demo loader | done |
+| Migration rules (`07`) + planner screen + detail panel | done |
+| Markdown report with limitations | done |
+| Dependency graph / blast radius (`08`) | **not started** |
+| PQC Lab (liboqs ML-KEM / ML-DSA) | **not started** |
+| AI Copilot (template mode) | **not started** |
+| PDF report, diff scanning, Go/Rust/C# | not started (stretch) |
+
+## Run locally
+    python -m venv .venv && source .venv/bin/activate
+    pip install -r backend/requirements.txt && pip install -e scanner
+    cd backend && uvicorn app.main:app --port 8000        # terminal 1
+    cd frontend && npm install && npm run dev             # terminal 2 -> http://localhost:5173
+Then open **Repository Scanner -> Load Acme Payments demo**. (Docker: `docker compose up --build`; not verified in CI here.)
+
+## Tests
+    cd scanner && pytest        # deterministic scanner (rules, config, certificates, determinism, DoS resistance)
+    cd backend && pytest        # ingestion, risk engine, migration rules, analysis API, report
+    cd frontend && npm run build && npm test   # strict TS build + UI end-to-end tests against a real backend (jsdom)
+
+## API (all under /api)
+    POST /scans?filename=x.zip (raw body)  ->  ingest           POST /scans/{id}/analyze  -> scan + score + persist
+    POST /demo/acme                        ->  bundled demo, one call
+    GET  /scans, /scans/{id}, /scans/{id}/summary, /scans/{id}/findings?band=&algorithm=&service=&q=&vulnerable=...
+    GET  /scans/{id}/findings/{fid}  (evidence, snippet, risk factors, migration)   GET /scans/{id}/findings.csv
+    POST|DELETE /scans/{id}/findings/{fid}/suppress   GET /scans/{id}/migration   GET /scans/{id}/report.md
+Errors: `{"error": {"code", "message"}}`.
 
 ## Layout
 - `frontend/` React + TypeScript + Vite
