@@ -1,78 +1,68 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { API, api, type Summary } from "./api";
+import Dashboard from "./Dashboard";
+import FindingDetail from "./FindingDetail";
+import Inventory from "./Inventory";
 import ScannerPanel from "./ScannerPanel";
 
-const API = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
-
-// Screens from 10_UI_ARCHITECTURE_AND_DEMO.md section 1. `phase` = build phase that fills it in.
-const SCREENS = [
-  { id: "dashboard", label: "Dashboard", phase: 4 },
-  { id: "scanner", label: "Repository Scanner", phase: 2 },
-  { id: "inventory", label: "Crypto Inventory", phase: 4 },
-  { id: "graph", label: "Dependency Graph", phase: 6 },
-  { id: "planner", label: "Migration Planner", phase: 7 },
-  { id: "lab", label: "PQC Lab", phase: 8 },
-  { id: "copilot", label: "AI Copilot", phase: 9 },
-  { id: "report", label: "Report", phase: 10 },
+const NAV = [
+  { id: "dashboard", label: "Dashboard" }, { id: "scanner", label: "Repository Scanner" }, { id: "inventory", label: "Crypto Inventory" },
 ] as const;
+const LATER = ["Dependency Graph", "Migration Planner", "PQC Lab", "AI Copilot", "Report"];
 
-type Health = { status: string; engine_version: string; copilot_mode: string };
+function useRoute(): string[] {
+  const [h, setH] = useState(location.hash);
+  useEffect(() => { const f = () => setH(location.hash); window.addEventListener("hashchange", f); return () => window.removeEventListener("hashchange", f); }, []);
+  const parts = h.replace(/^#\/?/, "").split("/").filter(Boolean);
+  return parts.length ? parts : ["dashboard"];
+}
 
 export default function App() {
-  const [active, setActive] = useState<string>("dashboard");
-  const [health, setHealth] = useState<Health | null>(null);
+  const [scanId, setScanId] = useState<string | null>(() => localStorage.getItem("qmc.scanId"));
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [health, setHealth] = useState<"ok" | "down" | "…">("…");
   const [error, setError] = useState<string | null>(null);
+  const route = useRoute();
 
-  useEffect(() => {
-    fetch(`${API}/api/health`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then(setHealth)
-      .catch((e) => setError(String(e.message ?? e)));
-  }, []);
+  useEffect(() => { fetch(`${API}/api/health`).then((r) => setHealth(r.ok ? "ok" : "down")).catch(() => setHealth("down")); }, []);
+  const load = useCallback((id: string) => api.summary(id).then((s) => { setSummary(s); setError(null); }).catch((e: Error) => {
+    if (/not found/i.test(e.message)) { localStorage.removeItem("qmc.scanId"); setScanId(null); setSummary(null); } else setError(e.message);
+  }), []);
+  useEffect(() => { if (scanId) void load(scanId); }, [scanId, load]);
 
-  const screen = SCREENS.find((s) => s.id === active)!;
+  const onDone = (s: Summary) => { localStorage.setItem("qmc.scanId", s.scan.id); setScanId(s.scan.id); setSummary(s); };
+  const page = route[0];
 
+  let body;
+  if (page === "scanner") body = <ScannerPanel onDone={onDone} current={summary} />;
+  else if (!scanId) body = (
+    <div className="panel empty-state">
+      <h3>No scan yet</h3>
+      <p className="dim">Load the bundled Acme Payments repository, or upload your own archive, to see your cryptographic inventory and quantum exposure.</p>
+      <a className="btn primary" href="#/scanner">Scan a repository</a>
+    </div>);
+  else if (page === "inventory") body = <Inventory scanId={scanId} />;
+  else if (page === "finding" && route[1]) body = <FindingDetail scanId={scanId} fid={route[1]} />;
+  else body = summary ? <Dashboard s={summary} /> : <p className="dim">Loading…</p>;
+
+  const title = page === "finding" ? "Finding detail" : NAV.find((n) => n.id === page)?.label ?? "Dashboard";
   return (
     <div className="shell">
       <aside className="nav">
         <h1 className="brand">Quantum Migration Copilot</h1>
+        <p className="tag">Discover your cryptography. Understand your quantum exposure. Plan your migration.</p>
         <nav aria-label="Main">
-          {SCREENS.map((s) => (
-            <button
-              key={s.id}
-              className={s.id === active ? "navitem on" : "navitem"}
-              onClick={() => setActive(s.id)}
-            >
-              {s.label}
-            </button>
-          ))}
+          {NAV.map((n) => <a key={n.id} href={`#/${n.id}`} className={page === n.id || (n.id === "inventory" && page === "finding") ? "navitem on" : "navitem"}>{n.label}</a>)}
+          {LATER.map((l) => <span key={l} className="navitem soon" title="Planned: not part of this build">{l}<small>soon</small></span>)}
         </nav>
-        <p className="engine" role="status">
-          {health
-            ? `Engine ${health.engine_version} connected`
-            : error
-            ? "Backend unreachable"
-            : "Connecting to backend…"}
-        </p>
+        <p className="engine" role="status">Backend: {health === "ok" ? "connected" : health === "down" ? "unreachable" : "connecting…"}</p>
       </aside>
-
       <main className="main">
-        <h2>{screen.label}</h2>
-        {screen.id === "scanner" ? (
-          <ScannerPanel />
-        ) : (
-          <p className="empty">
-            This screen is built in phase {screen.phase}. Nothing has been scanned yet.
-          </p>
-        )}
-        {error && (
-          <p className="error">
-            Could not reach the backend at {API} ({error}). Start it with
-            <code> uvicorn app.main:app --port 8000</code> from <code>backend/</code>.
-          </p>
-        )}
-        <footer className="honesty">
-          Static-analysis estimates. Not a certification.
-        </footer>
+        <h2 className="page">{title}</h2>
+        {error && <p className="error" role="alert">{error}</p>}
+        {health === "down" && <p className="error" role="alert">Cannot reach the backend at {API}. Start it with <code>uvicorn app.main:app --port 8000</code> in <code>backend/</code>.</p>}
+        {body}
+        <footer className="honesty">Static-analysis estimates. Not a certification. Quantum-vulnerable means vulnerable to a future quantum computer, not broken today.</footer>
       </main>
     </div>
   );
