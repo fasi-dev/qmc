@@ -218,3 +218,17 @@ def test_many_files_scale(scan):
     t = time.time()
     res = scan(files)
     assert len(res.findings) == 600 and time.time() - t < 20
+
+
+# ---------------------------------------------------------------- encoding regressions
+@pytest.mark.parametrize("fname,src,alg", [
+    ("bom.py", "import hashlib\nh = hashlib.sha1(b'x')\n", "SHA-1"),
+    ("Bom.java", 'import java.security.*;\nclass A { Object k = KeyPairGenerator.getInstance("RSA"); }\n', "RSA"),
+    ("bom.js", "const crypto = require('crypto');\nconst h = crypto.createHash('sha256');\n", "SHA-256"),
+])
+def test_utf8_bom_does_not_hide_findings(scan, fname, src, alg):
+    """Regression: a UTF-8 BOM made Python files fail to parse (parse_error, zero findings)."""
+    res = scan({fname: b"\xef\xbb\xbf" + src.encode()})
+    assert res.files_skipped == []
+    f = code_findings(res)
+    assert [x["algorithm"] for x in f] == [alg] and f[0]["line_start"] == 2

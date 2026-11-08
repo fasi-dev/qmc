@@ -146,6 +146,11 @@ def scan_tree(root: Path | str, *, scan_id: str = "00000000-0000-4000-8000-00000
                     skipped.append({"file": rel, "reason": "too_large"})
                     continue
                 text = full.read_bytes().decode("utf-8", errors="replace")
+                # A UTF-8 byte-order mark (common in files saved by Windows editors) makes ast.parse() fail with
+                # "invalid non-printable character U+FEFF", which silently dropped every finding in the file.
+                # Stripping it changes no line numbers and no column offsets on later lines.
+                if text.startswith("﻿"):
+                    text = text[1:]
             except OSError:
                 skipped.append({"file": rel, "reason": "read_error"})
                 continue
