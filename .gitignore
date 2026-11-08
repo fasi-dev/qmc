@@ -9,3 +9,4 @@ data/
 dist/
 node_modules/
 tsconfig.tsbuildinfo
+*.egg-info/

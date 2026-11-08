@@ -12,23 +12,26 @@ Demo script with real numbers: `docs/DEMO.md`.
 | Area | State |
 |---|---|
 | Safe ingestion (zip/tar, bombs, traversal, symlinks, redaction) | done, adversarially tested |
-| Scanner: Python (AST), Java, JS/TS, YAML/JSON, nginx/SSH, Dockerfile/CI, X.509 certificates (74 versioned rules) | done |
+| Scanner: Python (AST), Java, JS/TS, YAML/JSON, nginx/SSH, Dockerfile/CI, X.509 certificates (78 versioned rules; MD5 and legacy ciphers as classical hygiene) | done |
 | QMP risk engine (`06`), HNDL flag, guard rules, metadata badges | done |
 | Inventory API + UI (filters, search, CSV, suppression/false positive) | done |
+| Per-scan access tokens, rate limiting, retention, capacity cap, atomic analysis | done (see Access model) |
+| CI (scanner, backend, frontend, Docker builds) | workflow added (`.github/workflows/ci.yml`) |
 | Dashboard, finding detail (evidence snippet, factor bars), scanner screen with Acme demo loader | done |
 | Migration rules (`07`) + planner screen + detail panel | done |
 | Markdown report with limitations | done |
 | Dependency graph / blast radius (`08`) | **not started** |
 | PQC Lab (liboqs ML-KEM / ML-DSA) | **not started** |
-| AI Copilot (template mode) | **not started** (`/api/health` reports a `copilot_mode` field, but no Copilot exists yet) |
+| AI Copilot | **not started** |
 | PDF report, diff scanning, Go/Rust/C# | not started (stretch) |
 
 ## Run locally
     python -m venv .venv && source .venv/bin/activate
-    pip install -r backend/requirements.txt && pip install -e scanner
+    pip install -r backend/requirements-dev.txt && pip install -e scanner
     cd backend && uvicorn app.main:app --port 8000        # terminal 1
     cd frontend && npm install && npm run dev             # terminal 2 -> http://localhost:5173
-Then open **Repository Scanner -> Load Acme Payments demo**. (Docker: `docker compose up --build`; not verified in CI here.)
+Then open **Repository Scanner -> Load Acme Payments demo**. Docker: `docker compose up --build` (images are built in CI).
+Deployment, environment variables and the Render checklist: `docs/DEPLOYMENT.md`.
 
 ## Tests
     cd scanner && pytest        # deterministic scanner (rules, config, certificates, determinism, DoS resistance)
@@ -36,10 +39,16 @@ Then open **Repository Scanner -> Load Acme Payments demo**. (Docker: `docker co
     cd backend && pytest        # ingestion, risk engine, migration rules, analysis API, report
     cd frontend && npm run build && npm test   # strict TS build + UI end-to-end tests against a real backend (jsdom)
 
+## Access model
+No accounts. Creating a scan (upload or demo) returns an `access_token` **once**; every `/api/scans/{id}/...` call
+needs it in the `X-QMC-Scan-Token` header (the UI stores it in the browser). Only a SHA-256 of the token is stored.
+A wrong token gets the same 404 as an unknown scan. Listing all scans needs the operator token (`QMC_ADMIN_TOKEN`).
+Scans are deleted after `QMC_RETENTION_HOURS` (default 24); scan creation is rate-limited per client.
+
 ## API (all under /api)
     POST /scans?filename=x.zip (raw body)  ->  ingest           POST /scans/{id}/analyze  -> scan + score + persist
     POST /demo/acme                        ->  bundled demo, one call
-    GET  /scans, /scans/{id}, /scans/{id}/summary, /scans/{id}/findings?band=&algorithm=&service=&q=&vulnerable=...
+    GET  /scans (operator only), /scans/{id}, /scans/{id}/summary, /scans/{id}/findings?band=&algorithm=&service=&q=&vulnerable=...
     GET  /scans/{id}/findings/{fid}  (evidence, snippet, risk factors, migration)   GET /scans/{id}/findings.csv
     POST|DELETE /scans/{id}/findings/{fid}/suppress   GET /scans/{id}/migration   GET /scans/{id}/report.md
 Errors: `{"error": {"code", "message"}}`.
@@ -49,22 +58,6 @@ Errors: `{"error": {"code", "message"}}`.
 - `backend/`  Python + FastAPI monolith
 - `scanner/`  Python package (deterministic discovery engine)
 - `docs/knowledge-pack/` the source-of-truth spec
-
-## Run (Docker)
-    docker compose up --build      # UI :5173, API :8000
-
-## Run (local dev)
-    # backend
-    python -m venv .venv && source .venv/bin/activate
-    pip install -r backend/requirements.txt && pip install -e scanner
-    cd backend && uvicorn app.main:app --port 8000
-    # frontend (second terminal)
-    cd frontend && npm install && npm run dev
-
-## Test
-    cd scanner && pytest
-    cd backend && pytest           # includes the adversarial ingestion suite (tests/ingestion/)
-    cd frontend && npm run build   # type-check + production build
 
 ## Scanner (Phase 3)
     python -m qmc_scanner sample-repos/acme-payments --summary          # table

@@ -1,5 +1,0 @@
-pyyaml>=6.0
-cryptography>=42
-
-[dev]
-pytest>=8
