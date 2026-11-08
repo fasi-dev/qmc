@@ -237,3 +237,10 @@ def test_long_import_clauses_still_resolve_up_to_the_bound(scan):
     names = ", ".join(f"n{i}" for i in range(60))                 # ~400 chars: within the 600-char bound
     res = scan({"a.ts": f"import {{ {names} }} from './b';\n", "b.ts": ""})
     assert [(r["spec"], r["resolution"]) for r in res.imports] == [("./b", "resolved")]
+
+
+def test_java_identifier_cap_is_reported_not_silent(scan, monkeypatch):
+    monkeypatch.setattr("qmc_scanner.imports.MAX_JAVA_IDENTIFIERS", 3)
+    monkeypatch.setattr("qmc_scanner.engine.MAX_JAVA_IDENTIFIERS", 3)
+    res = scan({"p/A.java": "package p;\nclass A { B b; C c; D d; E e; F f; }\n", "p/F.java": "package p;\nclass F {}\n"})
+    assert res.import_notes and "more than 3 distinct type names" in res.import_notes[0]

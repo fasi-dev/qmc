@@ -82,7 +82,7 @@ def _worst(a: str | None, b: str | None) -> str | None:
 
 
 def build_graph(findings: list[dict], imports: list[dict] | None, services: list[dict], repo_name: str,
-                *, imports_truncated: bool = False, excluded: dict | None = None) -> Graph:
+                *, imports_truncated: bool = False, excluded: dict | None = None, notes: list[str] | None = None) -> Graph:
     """findings: scored, non-comment, non-suppressed finding records (see analysis.graph_inputs).
     imports: scanner import records, or None for scans analyzed before dependency extraction existed."""
     from qmc_scanner.services import service_for_path
@@ -206,6 +206,7 @@ def build_graph(findings: list[dict], imports: list[dict] | None, services: list
         if ambiguous:
             g.limitations.append(f"{ambiguous} import(s) matched several candidate files or a whole Java package; those "
                                  "edges are marked inferred.")
+    g.limitations.extend(notes or [])
     g.limitations.append("Static imports only: dynamic loading, reflection, dependency injection, runtime configuration "
                          "and calls across services or network APIs are not visible.")
     if excluded:

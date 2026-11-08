@@ -13,6 +13,7 @@ SP 800-227, RFC 9964, draft-ietf-tls-ecdhe-mlkem, RFC 7465, RFC 8996.
 """
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 
 from .graph import Graph
@@ -70,7 +71,6 @@ NON_PRODUCTION_TOKENS = {"lab", "labs", "demo", "demos", "example", "examples", 
 
 
 def non_production(r: dict) -> bool:
-    import re
     toks = {t.lower() for t in re.split(r"[/._\-]", r["file"]) if t}
     return bool(r.get("test_path")) or bool(toks & NON_PRODUCTION_TOKENS)
 BROKEN_HASHES = {"SHA-1", "MD5"}
@@ -199,7 +199,7 @@ def assess(records: list[dict], g: Graph, *, analysis: dict | None, services: li
                            "files and are candidates for a central crypto interface; calls spread across many files make an "
                            "algorithm swap harder." if vuln_files else "No quantum-vulnerable call sites to centralize."),
                "count": len(vuln_files), "files": len(vuln_files), "services": sorted({r["service"] for r in vuln}),
-               "algorithms": {}, "evidence": [], "hubs": hubs[:20], "references": ["NIST-PQC-PUBS"],
+               "algorithms": {}, "evidence": [], "hubs": hubs[:20], "hubs_total": len(hubs), "references": ["NIST-PQC-PUBS"],
                "imports_available": bool(g.stats.get("imports_available"))}
     categories.append(agility)
 

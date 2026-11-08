@@ -16,7 +16,7 @@ from typing import Any
 from ._version import ENGINE_VERSION
 from .confscan import hash_comments, scan_directives, scan_pem, scan_structured
 from .context import infer_context
-from .imports import JavaUnit, RawImport, TsConfig, java_imports, java_unit, js_imports, parse_tsconfig, python_imports, resolve_all
+from .imports import MAX_JAVA_IDENTIFIERS, JavaUnit, RawImport, TsConfig, java_imports, java_unit, js_imports, parse_tsconfig, python_imports, resolve_all
 from .lexers import lex
 from .matches import RawMatch, clean_evidence, scan_mentions
 from .pyscan import mentions_python, scan_python
@@ -86,13 +86,15 @@ class ScanResult:
     imports: list[dict[str, Any]] = field(default_factory=list)
     imports_truncated: bool = False
     code_files: dict[str, str] = field(default_factory=dict)
+    import_notes: list[str] = field(default_factory=list)   # limits hit while extracting dependencies (never silent)
 
     def to_dict(self) -> dict[str, Any]:
         return {"engine_version": self.engine_version, "scan_id": self.scan_id, "as_of": self.as_of, "status": self.status,
                 "files_scanned": self.files_scanned, "files_skipped": self.files_skipped,
                 "skipped_directories": self.skipped_directories, "rule_hits": self.rule_hits,
                 "rule_versions": self.rule_versions, "findings": self.findings,
-                "imports": self.imports, "imports_truncated": self.imports_truncated, "code_files": self.code_files}
+                "imports": self.imports, "imports_truncated": self.imports_truncated, "code_files": self.code_files,
+                "import_notes": self.import_notes}
 
 
 def _resolve_siblings(matches: list[RawMatch]) -> None:
@@ -219,11 +221,16 @@ def scan_tree(root: Path | str, *, scan_id: str = "00000000-0000-4000-8000-00000
         hits[f["rule_id"]] = hits.get(f["rule_id"], 0) + 1
     used = {r.rule_id: r.rule_version for r in ruleset.rules}
     imports, truncated = resolve_all(raw_imports, code_files, java_units=java_units, tsconfigs=tsconfigs)
+    notes = []
+    capped_java = sorted(u.file for u in java_units if u.truncated)
+    if capped_java:
+        notes.append(f"{len(capped_java)} Java file(s) use more than {MAX_JAVA_IDENTIFIERS:,} distinct type names; same-package "
+                     f"references beyond that limit were not recorded (e.g. {capped_java[0]}).")
     return ScanResult(scan_id, status, findings, dict(sorted(scanned.items())),
                       sorted(skipped, key=lambda s: (s["file"], s["reason"])), sorted(skipped_dirs),
                       dict(sorted(hits.items())), dict(sorted(used.items())),
                       as_of=as_of.date().isoformat(), imports=imports, imports_truncated=truncated,
-                      code_files=dict(sorted(code_files.items())))
+                      code_files=dict(sorted(code_files.items())), import_notes=notes)
 
 
 def _finalize(collected: list[tuple[str, RawMatch]], scan_id: str, services: list[dict], repo: str) -> list[dict]:

@@ -176,7 +176,7 @@ def _analyze_claimed(db: Session, row: ScanRow, scan_id: str, s: Settings, as_of
             snippet=_snippet(cache[f["file"]], f["line_start"], f["line_end"]) if cache[f["file"]] else None))
     row.status = "analyzed"
     row.graph = {"version": 1, "imports": res.imports, "imports_truncated": res.imports_truncated,
-                 "code_files": len(res.code_files)}
+                 "code_files": len(res.code_files), "notes": res.import_notes}
     row.analysis = {"engine_version": res.engine_version, "scan_status": res.status, "as_of": res.as_of,
                     "files_scanned": res.files_scanned, "files_skipped": res.files_skipped,
                     "skipped_directories": res.skipped_directories, "rule_hits": res.rule_hits,
@@ -288,13 +288,16 @@ def graph_context(db: Session, scan_id: str) -> GraphContext:
         if key in _GRAPH_CACHE:
             _GRAPH_CACHE.move_to_end(key)
             return _GRAPH_CACHE[key]
+    t0 = time.monotonic()
     live = [r for r in rows if not r.suppressed and not r.comment_only]
     recs = [finding_record(r.data, r.risk, plan_for(r.data, r.risk)) for r in live]
     stored = scan.graph if isinstance(scan.graph, dict) else None
     excluded = {"suppressed": sum(r.suppressed for r in rows), "comment_only": sum(r.comment_only and not r.suppressed for r in rows)}
     services = scan.manifest.get("services", [])
     g = build_graph(recs, stored.get("imports") if stored else None, services, scan.repo_name,
-                    imports_truncated=bool(stored and stored.get("imports_truncated")), excluded=excluded)
+                    imports_truncated=bool(stored and stored.get("imports_truncated")), excluded=excluded,
+                    notes=(stored or {}).get("notes") or [])
+    log.info("graph built for scan %s: %d nodes, %d edges in %.2fs", scan_id, g.stats["nodes"], g.stats["edges"], time.monotonic() - t0)
     ctx = GraphContext(g, recs, excluded, dict(scan.analysis or {}), services, scan.repo_name)
     with _graph_lock:
         _GRAPH_CACHE[key] = ctx

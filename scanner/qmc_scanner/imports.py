@@ -151,6 +151,7 @@ class JavaUnit:
     file: str
     package: str
     identifiers: dict[str, tuple[int, str]]   # name -> (first line, evidence)
+    truncated: bool = False                   # more distinct type names than MAX_JAVA_IDENTIFIERS
 
 
 def java_unit(lx: Lexed, rel: str) -> JavaUnit:
@@ -158,16 +159,18 @@ def java_unit(lx: Lexed, rel: str) -> JavaUnit:
     pkg = pm.group(1) if pm and lx.mask[pm.start(1)] == 0 else ""
     lines = lx.code.split("\n")
     ids: dict[str, tuple[int, str]] = {}
+    truncated = False
     for m in _JAVA_TYPE_NAME.finditer(lx.code):
         if lx.mask[m.start()] != 0 or m.group(0) in ids:
             continue
         line = lx.line_of(m.start())
         if lines[line - 1].lstrip().startswith(("import ", "package ")):
             continue
-        ids[m.group(0)] = (line, "")
         if len(ids) >= MAX_JAVA_IDENTIFIERS:
+            truncated = True
             break
-    return JavaUnit(rel, pkg, {k: (ln, _evidence(lines[ln - 1], rel)) for k, (ln, _) in ids.items()})
+        ids[m.group(0)] = (line, "")
+    return JavaUnit(rel, pkg, {k: (ln, _evidence(lines[ln - 1], rel)) for k, (ln, _) in ids.items()}, truncated)
 
 
 def same_package_records(units: list[JavaUnit], records: list[dict]) -> list[dict]:
