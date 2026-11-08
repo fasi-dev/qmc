@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { API, api, type Summary } from "./api";
+import { API, api, forgetToken, type Summary } from "./api";
 import Dashboard from "./Dashboard";
 import FindingDetail from "./FindingDetail";
 import Inventory from "./Inventory";
@@ -9,7 +9,7 @@ import ScannerPanel from "./ScannerPanel";
 const NAV = [
   { id: "dashboard", label: "Dashboard" }, { id: "scanner", label: "Repository Scanner" }, { id: "inventory", label: "Crypto Inventory" }, { id: "planner", label: "Migration Planner" },
 ] as const;
-const LATER = ["Dependency Graph", "PQC Lab", "AI Copilot", "Report"];
+const LATER = ["Dependency Graph", "PQC Lab", "AI Copilot"];
 
 function useRoute(): string[] {
   const [h, setH] = useState(location.hash);
@@ -27,7 +27,8 @@ export default function App() {
 
   useEffect(() => { fetch(`${API}/api/health`).then((r) => setHealth(r.ok ? "ok" : "down")).catch(() => setHealth("down")); }, []);
   const load = useCallback((id: string) => api.summary(id).then((s) => { setSummary(s); setError(null); }).catch((e: Error) => {
-    if (/not found/i.test(e.message)) { localStorage.removeItem("qmc.scanId"); setScanId(null); setSummary(null); } else setError(e.message);
+    // Not found = deleted by retention, or no access token in this browser: forget it and start fresh.
+    if (/not found/i.test(e.message)) { localStorage.removeItem("qmc.scanId"); forgetToken(id); setScanId(null); setSummary(null); } else setError(e.message);
   }), []);
   useEffect(() => { if (scanId) void load(scanId); }, [scanId, load]);
 

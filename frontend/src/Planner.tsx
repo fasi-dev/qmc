@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import { api, type PlanRow } from "./api";
-import { Band, Badge, pretty } from "./ui";
+import { Band, Badge, pretty, rowAction } from "./ui";
 
 export default function Planner({ scanId }: { scanId: string }) {
   const [data, setData] = useState<Awaited<ReturnType<typeof api.migration>> | null>(null);
@@ -30,7 +30,8 @@ export default function Planner({ scanId }: { scanId: string }) {
         <tbody>
           {rows.map((r) => (
             <Fragment key={r.id}>
-              <tr className="click" onClick={() => setOpen(open === r.id ? null : r.id)}>
+              <tr className="click" {...rowAction(() => setOpen(open === r.id ? null : r.id), `Show migration details for ${r.id}`, "button")}
+                  aria-expanded={open === r.id}>
                 <td><Band band={r.band} qmp={r.qmp} /></td>
                 <td><b>{r.algorithm}</b> <span className="dim">{pretty(r.operation)}</span><br /><code className="fine">{r.file}:{r.line_start}</code></td>
                 <td>{r.role ?? "—"}</td>

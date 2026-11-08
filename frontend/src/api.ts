@@ -1,5 +1,32 @@
 export const API: string = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
+// ---- per-scan access tokens -------------------------------------------------------------------------------
+// The backend returns an access token once, when a scan is created, and requires it (X-QMC-Scan-Token) on every
+// later request for that scan. Tokens are kept in this browser only (localStorage), keyed by scan id.
+const TOKENS_KEY = "qmc.tokens";
+const memoryTokens: Record<string, string> = {};   // fallback when localStorage is unavailable
+const SCAN_IN_PATH = /\/api\/scans\/([0-9a-f-]{36})/;
+
+function loadTokens(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(TOKENS_KEY) ?? "{}") as Record<string, string>; } catch { return {}; }
+}
+export function rememberToken(scanId: string, token: string | undefined): void {
+  if (!token) return;
+  const t = loadTokens(); t[scanId] = token;
+  try { localStorage.setItem(TOKENS_KEY, JSON.stringify(t)); } catch { /* storage unavailable: token lives for this page only */ }
+  memoryTokens[scanId] = token;
+}
+export function forgetToken(scanId: string): void {
+  const t = loadTokens(); delete t[scanId]; delete memoryTokens[scanId];
+  try { localStorage.setItem(TOKENS_KEY, JSON.stringify(t)); } catch { /* ignore */ }
+}
+function authHeaders(path: string): Record<string, string> {
+  const m = SCAN_IN_PATH.exec(path);
+  if (!m) return {};
+  const token = memoryTokens[m[1]] ?? loadTokens()[m[1]];
+  return token ? { "X-QMC-Scan-Token": token } : {};
+}
+
 export type Card = {
   id: string; file: string; line_start: number; algorithm: string; operation: string; service: string;
   confidence_level: string; quantum_vulnerable: boolean; already_pqc: boolean; band: string | null; qmp: number | null;
@@ -20,6 +47,7 @@ export type Summary = {
             hndl_elevated: number; services: number; comment_or_doc_mentions: number; suppressed: number; test_path: number };
   by_band: Record<string, number>; by_primitive: Record<string, number>; by_algorithm: Record<string, number>;
   services: ServiceRow[]; top_findings: Card[]; qmp_label: string; limitations: string;
+  scan_warnings?: string[];
 };
 export type Factor = { value: number; weight: number; label: string; why: string; source: string };
 export type Risk = {
@@ -52,7 +80,8 @@ export type Facets = { algorithm: string[]; primitive: string[]; service: string
 
 async function j<T>(path: string, init?: RequestInit): Promise<T> {
   let r: Response;
-  try { r = await fetch(API + path, init); } catch { throw new Error(`Cannot reach the backend at ${API}. Is it running?`); }
+  const headers = { ...authHeaders(path), ...(init?.headers as Record<string, string> | undefined) };
+  try { r = await fetch(API + path, { ...init, headers }); } catch { throw new Error(`Cannot reach the backend at ${API}. Is it running?`); }
   const body = await r.json().catch(() => null);
   if (!r.ok) {
     const d = body?.detail;
@@ -61,14 +90,38 @@ async function j<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+/** Authenticated download (report / CSV): links cannot send the token header, so fetch the file and save it. */
+async function download(path: string, filename: string): Promise<void> {
+  let r: Response;
+  try { r = await fetch(API + path, { headers: authHeaders(path) }); } catch { throw new Error(`Cannot reach the backend at ${API}. Is it running?`); }
+  if (!r.ok) {
+    const body = await r.json().catch(() => null);
+    throw new Error(body?.error?.message ?? `Download failed (HTTP ${r.status})`);
+  }
+  const url = URL.createObjectURL(await r.blob());
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export const api = {
-  demo: () => j<Summary>("/api/demo/acme", { method: "POST" }),
-  upload: (file: File) => j<{ scan_id: string; stats: { file_count: number } }>(`/api/scans?filename=${encodeURIComponent(file.name)}`,
-    { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file }),
+  demo: async () => {
+    const s = await j<Summary & { access_token?: string }>("/api/demo/acme", { method: "POST" });
+    rememberToken(s.scan.id, s.access_token);
+    return s as Summary;
+  },
+  upload: async (file: File) => {
+    const up = await j<{ scan_id: string; access_token?: string; stats: { file_count: number } }>(`/api/scans?filename=${encodeURIComponent(file.name)}`,
+      { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file });
+    rememberToken(up.scan_id, up.access_token);
+    return up;
+  },
   analyze: (id: string) => j<Summary>(`/api/scans/${id}/analyze`, { method: "POST" }),
   summary: (id: string) => j<Summary>(`/api/scans/${id}/summary`),
   findings: (id: string, qs: string) => j<{ findings: Card[]; count: number; total_all: number; facets: Facets }>(`/api/scans/${id}/findings?${qs}`),
-  csvUrl: (id: string, qs: string) => `${API}/api/scans/${id}/findings.csv?${qs}`,
+  downloadCsv: (id: string, qs: string) => download(`/api/scans/${id}/findings.csv?${qs}`, `qmc-findings-${id.slice(0, 8)}.csv`),
+  downloadReport: (id: string) => download(`/api/scans/${id}/report.md`, `qmc-report-${id.slice(0, 8)}.md`),
   migration: (id: string) => j<{ rows: PlanRow[]; crypto_agility: string[]; honesty: string[]; qmp_label: string }>(`/api/scans/${id}/migration`),
   finding: (id: string, fid: string) => j<Detail>(`/api/scans/${id}/findings/${fid}`),
   suppress: (id: string, fid: string, reason: string) => j<Detail>(`/api/scans/${id}/findings/${fid}/suppress`,

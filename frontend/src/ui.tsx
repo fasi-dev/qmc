@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 
 export const BAND_COLOR: Record<string, string> = {
   Critical: "var(--band-critical)", High: "var(--band-high)", Review: "var(--band-review)", Informational: "var(--band-info)",
@@ -24,6 +24,18 @@ export function Kpi({ value, label, tone, hint }: { value: ReactNode; label: str
   );
 }
 export const pretty = (s: string) => s.replace(/_/g, " ");
+
+/** Props that make a table row behave like a link for mouse AND keyboard users (Tab to focus, Enter/Space to open). */
+export function rowAction(action: () => void, label: string, role: "link" | "button" = "link") {
+  return {
+    onClick: action,
+    onKeyDown: (e: KeyboardEvent<HTMLElement>) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); action(); } },
+    tabIndex: 0,
+    role,
+    "aria-label": label,
+  };
+}
+export const rowLink = (hash: string, label: string) => rowAction(() => { location.hash = hash; }, label);
 export const where = (file: string, line: number) => `${file}:${line}`;
 
 /** Tiny dependency-free highlighter (strings, comments, a few keywords) for evidence snippets. */

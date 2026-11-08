@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type Card, type Facets } from "./api";
-import { Band, Badge, pretty, where } from "./ui";
+import { Band, Badge, pretty, rowLink, where } from "./ui";
 
 type F = { q: string; band: string; algorithm: string; primitive: string; service: string; confidence: string; vuln: string;
            comments: boolean; tests: boolean; suppressed: boolean; language: string };
@@ -64,7 +64,7 @@ export default function Inventory({ scanId }: { scanId: string }) {
         </div>
         <div className="row">
           <button className="btn" onClick={() => setF(EMPTY)}>Reset</button>
-          <a className="btn" href={api.csvUrl(scanId, qs)}>Export CSV</a>
+          <button className="btn" onClick={() => { api.downloadCsv(scanId, qs).catch((e: Error) => setError(e.message)); }}>Export CSV</button>
         </div>
       </div>
       <p className="fine">{loading ? "Loading…" : `${meta.count} of ${meta.total} findings shown`}. Every row traces to a file, line and evidence string.</p>
@@ -73,7 +73,7 @@ export default function Inventory({ scanId }: { scanId: string }) {
         <thead><tr><th>Priority</th><th>Algorithm</th><th>Operation</th><th>Service</th><th>File</th><th>Confidence</th><th>Quantum</th><th /></tr></thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.id} className={`click ${r.suppressed ? "muted" : ""}`} onClick={() => (location.hash = `#/finding/${r.id}`)}>
+            <tr key={r.id} className={`click ${r.suppressed ? "muted" : ""}`} {...rowLink(`#/finding/${r.id}`, `Open finding ${r.id}`)}>
               <td><Band band={r.band} qmp={r.qmp} /></td>
               <td><b>{r.algorithm}</b></td><td>{pretty(r.operation)}</td><td>{r.service}</td>
               <td><code>{where(r.file, r.line_start)}</code></td>
