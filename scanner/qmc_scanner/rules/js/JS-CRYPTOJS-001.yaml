@@ -1,5 +1,5 @@
 rule_id: JS-CRYPTOJS-001
-rule_version: 1.0.0
+rule_version: 1.2.0
 language: js
 description: crypto-js primitives
 library: crypto-js
@@ -11,11 +11,21 @@ confidence: 0.95
 match:
   type: regex
   file_requires: '[''\"]crypto-js'
-  pattern: \bCryptoJS\s*\.\s*(?P<alg>AES|SHA1|SHA256|SHA384|SHA512|SHA3|HmacSHA1|HmacSHA256|HmacSHA384|HmacSHA512)\b
+  pattern: \bCryptoJS\s*\.\s*(?P<alg>AES|TripleDES|DES|RC4|MD5|SHA1|SHA256|SHA384|SHA512|SHA3|HmacSHA1|HmacSHA256|HmacSHA384|HmacSHA512)\b
   value_group: alg
   value_map:
     aes:
       algorithm: AES
+    tripledes:
+      algorithm: 3DES
+    des:
+      algorithm: DES
+    rc4:
+      algorithm: RC4
+    md5:
+      algorithm: MD5
+      primitive: hash
+      operation: hashing
     sha1:
       algorithm: SHA-1
       primitive: hash

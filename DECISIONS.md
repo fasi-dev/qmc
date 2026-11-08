@@ -152,3 +152,28 @@ Spec issues found during the readiness check, and the default resolution used.
 41. **UI.** Hash routing, scan id in localStorage, no UI framework. Not verified in a real browser here: tested with jsdom + Testing Library
     driving the real app against a real backend process (`frontend/vitest.global.ts`). Docker images were not built in this environment.
 42. **Report** is Markdown only (PDF deferred). **Not built:** dependency graph, PQC Lab, AI Copilot (see README Status).
+
+---
+## Audit decisions (Nov 2026; see docs/AUDIT.md)
+
+43. **MD5 is now detected** (revises #28). It was outside the `05` catalog, so `hashlib.md5()`, `createHash('md5')` and
+    `MessageDigest.getInstance("MD5")` produced no finding at all: a silent false negative for one of the most common weak
+    primitives. MD5 is treated exactly like SHA-1: `quantum_vulnerable=false`, QE 1 ("classical hygiene", band capped at Review)
+    and migration rule R-09 (replace with SHA-256/SHA-3), never R-10 ("retain"). Rules bumped to 1.1.0: PY-HASHLIB-001/002,
+    PY-CRYPTOGRAPHY-HASH-001, PY-PYCRYPTODOME-HASH-001, JAVA-JCA-MD-001, JS-NODE-CRYPTO-HASH-001, JS-FORGE-HASH-001, JS-CRYPTOJS-001.
+    DES/3DES/RC4/Blowfish are still not detected in code (only as nginx cipher-suite hygiene); see AUDIT.md.
+44. **Context inference uses whole tokens** (refines #25): substring matching gave `processor.py` the `authentication`
+    context ("sso"). Paths and scope names are split on separators and camelCase.
+45. **UTF-8 BOM is stripped** before scanning (Python files with a BOM previously failed to parse).
+46. **Legacy symmetric ciphers are detected** (3DES/DES/RC4/Blowfish in Python, Java, Node, crypto-js): new rules
+    PY-WEAK-CIPHER-001, JAVA-JCA-CIPHER-003, JS-NODE-CRYPTO-WEAK-001/002, JS-CRYPTOJS-001 1.2.0. Scored as classical hygiene
+    (QE 1, capped at Review) and mapped to a new migration rule **R-13** (replace with AES-256-GCM, re-encrypt stored data);
+    never mapped to PQC. `07` had no rule for them (R-08 would have said "AES ... remains appropriate"), hence R-13.
+47. **Simple Python aliases are resolved** (`gen = rsa.generate_private_key; gen(...)`, `H = hashlib`) only when the name
+    is bound exactly once in the file from an imported dotted name. Reassignment, loops, tuple targets, `getattr` stay
+    unresolved (no dataflow).
+48. **Access control without accounts** (audit S1): per-scan bearer token, stored as SHA-256 only, header
+    `X-QMC-Scan-Token`; operator token `QMC_ADMIN_TOKEN`. Chosen over user accounts to keep the demo frictionless.
+    Trade-off: whoever holds the token (e.g. from this browser's localStorage) has full access to that scan.
+49. **Abuse limits are in-process** (rate limit, analysis gate, retention, capacity). Correct for one instance;
+    a multi-instance deployment needs a shared store.

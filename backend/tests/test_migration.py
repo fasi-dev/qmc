@@ -96,3 +96,40 @@ def test_planner_endpoint_on_real_demo_data(client):
     assert [r["rank"] for r in d["rows"]] == sorted(r["rank"] for r in d["rows"])
     det = client.get(f"/api/scans/{sid}/findings/{ecdh['id']}").json()
     assert det["migration"]["rule_id"] == "R-03" and det["migration"]["steps"]
+
+
+def test_md5_is_classical_hygiene_never_retained():
+    """MD5 must route to R-09 (replace), never to R-10 ('retain'), and is never mapped to a PQC algorithm."""
+    f = F(algorithm="MD5", primitive="hash", operation="hashing", quantum_vulnerable=False)
+    r = score(f, PAYMENT)
+    p = plan_for(f, r)
+    assert p["rule_id"] == "R-09" and "Retain" not in p["why"] and "SHA-256" in p["steps"][0]
+    assert r["factors"]["QE"]["value"] == 1 and r["band"] == "Review" and "classical hygiene" in r["badges"]
+
+
+@pytest.mark.parametrize("alg", ["3DES", "DES", "RC4", "Blowfish"])
+def test_legacy_ciphers_are_replaced_with_aes_not_retained_or_pqc(alg):
+    f = F(algorithm=alg, primitive="symmetric", operation="encryption", quantum_vulnerable=False)
+    r = score(f, PAYMENT)
+    p = plan_for(f, r)
+    assert p["rule_id"] == "R-13" and "AES-256-GCM" in p["steps"][0] and p["no_pqc_mapping"] is True
+    assert not any(x in p["direction"] for x in ("ML-KEM", "ML-DSA", "SLH-DSA"))
+    assert r["factors"]["QE"]["value"] == 1 and r["band"] == "Review"
+    assert "classical hygiene" in r["badges"] and "symmetric key size" not in r["badges"]
+
+
+def test_aes_still_r08():
+    assert plan(algorithm="AES", primitive="symmetric", operation="encryption", quantum_vulnerable=False)["rule_id"] == "R-08"
+
+
+def test_context_caveats_are_evidence_keyed():
+    jwt = plan(algorithm="ECDSA", operation="signature", context="authentication", rule_id="PY-PYJWT-001")
+    assert any("RFC 9964" in c for c in jwt["caveats"])
+    tls = plan(algorithm="ECDH", operation="key_agreement", context="tls-termination", rule_id="CFG-NGINX-CIPHER-001", confidence_level="medium")
+    assert any("X25519MLKEM768" in c for c in tls["caveats"])
+    cert = plan(algorithm="RSA", operation="signature", context="tls-termination", rule_id="CFG-X509-001")
+    assert any("X.509" in c for c in cert["caveats"]) and not any("RFC 9964" in c for c in cert["caveats"])
+    plain = plan(algorithm="ECDH", operation="key_agreement", context="key-establishment")
+    assert not any(k in c for c in plain["caveats"] for k in ("RFC 9964", "X25519MLKEM768", "X.509:"))
+    # shared caveat lists are never mutated across findings
+    assert len(plan(algorithm="ECDSA", operation="signature", context="unknown")["caveats"]) == 4

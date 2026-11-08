@@ -1,10 +1,13 @@
-import { API, type Summary } from "./api";
-import { Band, BAND_COLOR, Badge, Kpi, pretty, where } from "./ui";
+import { useState } from "react";
+import { api, type Summary } from "./api";
+import { Band, BAND_COLOR, Badge, Kpi, pretty, rowLink, where } from "./ui";
 
 export default function Dashboard({ s }: { s: Summary }) {
   const t = s.totals;
   const bandTotal = Object.values(s.by_band).reduce((a, b) => a + b, 0) || 1;
   const primMax = Math.max(1, ...Object.values(s.by_primitive));
+  const [dlError, setDlError] = useState<string | null>(null);
+  const warnings = s.scan_warnings ?? [];
   return (
     <div>
       <p className="meta">
@@ -12,10 +15,17 @@ export default function Dashboard({ s }: { s: Summary }) {
         {" "}{s.scan.ingestion.stats.file_count} files ingested · scan <code>{s.scan.id.slice(0, 8)}</code>
       </p>
       <div className="row">
-        <a className="btn primary" href={`${API}/api/scans/${s.scan.id}/report.md`}>Download report (Markdown)</a>
+        <button className="btn primary" onClick={() => { setDlError(null); api.downloadReport(s.scan.id).catch((e: Error) => setDlError(e.message)); }}>
+          Download report (Markdown)</button>
         <a className="btn" href="#/planner">Migration planner</a>
         <a className="btn" href="#/inventory">Crypto inventory</a>
       </div>
+      {dlError && <p className="error" role="alert">{dlError}</p>}
+      {warnings.length > 0 && (
+        <div className="callout warn" role="alert">
+          <b>Scan may be incomplete.</b>
+          <ul>{warnings.map((w) => <li key={w}>{w}</li>)}</ul>
+        </div>)}
       <div className="kpis">
         <Kpi value={t.crypto_findings} label="crypto assets found" hint="Executable crypto usages and crypto configuration (comments excluded)" />
         <Kpi value={t.quantum_vulnerable} label="quantum-vulnerable" tone="var(--band-high)" hint="Public-key crypto vulnerable to a FUTURE quantum computer (not broken today)" />
@@ -50,7 +60,7 @@ export default function Dashboard({ s }: { s: Summary }) {
         <table className="tbl">
           <thead><tr><th>Priority</th><th>Algorithm / operation</th><th>Service</th><th>Where</th><th>Confidence</th><th /></tr></thead>
           <tbody>{s.top_findings.map((f) => (
-            <tr key={f.id} onClick={() => (location.hash = `#/finding/${f.id}`)} className="click">
+            <tr key={f.id} {...rowLink(`#/finding/${f.id}`, `Open finding ${f.id}`)} className="click">
               <td><Band band={f.band} qmp={f.qmp} /></td>
               <td><b>{f.algorithm}</b> <span className="dim">{pretty(f.operation)}</span></td>
               <td>{f.service}</td>

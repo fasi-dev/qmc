@@ -85,3 +85,12 @@ def test_engine_caps_comment_only_even_if_a_rule_author_sets_high_confidence(tmp
     tree = tmp_path / "t"; tree.mkdir(); (tree / "a.py").write_text("# TODO: RSA\n")
     res = scan_tree(tree, rules=load_rules(rules_dir))
     assert res.findings[0]["confidence"] == 0.45 and res.findings[0]["confidence_level"] == "low"
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("# migrated to ML-DSA and SLH-DSA", ["ML-DSA", "SLH-DSA"]),     # regression: also produced a spurious 'DSA'
+    ("# legacy DSA keys, replace with ML-DSA", ["DSA", "ML-DSA"]),
+    ("# DSA", ["DSA"]),
+])
+def test_pqc_names_do_not_produce_a_classical_dsa_mention(scan, text, expected):
+    assert sorted(f["algorithm"] for f in scan({"t.py": text + "\n"}).findings) == expected

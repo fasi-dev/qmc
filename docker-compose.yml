@@ -1,4 +1,4 @@
-# Quantum Migration Copilot - local demo stack (single tenant, localhost only)
+# Quantum Migration Copilot - local stack (UI http://localhost:5173, API http://localhost:8000)
 services:
   backend:
     build:
@@ -8,27 +8,34 @@ services:
       - "8000:8000"
     environment:
       QMC_DATA_DIR: /data
-      QMC_LLM_BACKEND: "none"   # none = deterministic template Copilot (default)
+      QMC_ADMIN_TOKEN: "${QMC_ADMIN_TOKEN:-}"          # optional operator token (lists all scans)
+      QMC_RETENTION_HOURS: "${QMC_RETENTION_HOURS:-24}"
+      QMC_RATE_LIMIT: "${QMC_RATE_LIMIT:-20}"
     volumes:
       - qmc-data:/data
-    # Hardening for the web tier; the scanner sandbox (no network, RO fs, rlimits)
-    # is added in Phase 2/3 when the scanner worker exists (see 04_THREAT_MODEL).
     user: "10001:10001"
     read_only: true
     tmpfs:
       - /tmp
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   frontend:
     build:
       context: ./frontend
+      args:
+        VITE_API_URL: "http://localhost:8000"
     ports:
-      - "5173:5173"
-    environment:
-      VITE_API_URL: "http://localhost:8000"
+      - "5173:8080"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   qmc-data:

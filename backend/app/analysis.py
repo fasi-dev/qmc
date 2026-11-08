@@ -6,20 +6,28 @@ from __future__ import annotations
 
 import io
 import json
+import logging
+import shutil
+import time
+import uuid
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
 from qmc_scanner import scan_tree
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
+from .access import can_access
 from .config import Settings
 from .db import FindingRow, ScanRow
 from .ingestion import IngestionError, load_manifest, purge_tree
 from .ingestion.pipeline import TREE_DIR, workspace_path
 from .migration import CRYPTO_AGILITY, HONESTY, plan_for
 from .risk import LABEL, priority_key, score
+from .scan_notes import is_expired, scan_warnings
+
+log = logging.getLogger("qmc.analysis")
 
 SAMPLE_DIR = Path(__file__).resolve().parents[2] / "sample-repos" / "acme-payments"
 SNIPPET_BEFORE, SNIPPET_AFTER, SNIPPET_MAX = 3, 3, 14
@@ -31,15 +39,67 @@ def repo_name_of(manifest: dict) -> str:
     return manifest.get("stripped_root_dir") or Path(manifest.get("original_filename", "repo")).stem or "repo"
 
 
-def register_scan(db: Session, manifest: dict) -> ScanRow:
+def register_scan(db: Session, manifest: dict, token_hash: str | None = None) -> ScanRow:
     row = db.get(ScanRow, manifest["scan_id"])
     summary = {k: v for k, v in manifest.items() if k != "files"}
     if row is None:
         row = ScanRow(id=manifest["scan_id"], created_at=manifest["created_at"], status="ingested",
-                      original_filename=manifest["original_filename"], repo_name=repo_name_of(manifest), manifest=summary)
+                      original_filename=manifest["original_filename"], repo_name=repo_name_of(manifest), manifest=summary,
+                      token_hash=token_hash)
         db.add(row)
     db.commit()
     return row
+
+
+def authorize(db: Session, scan_id: str, token: str | None, admin: bool) -> ScanRow:
+    """The scan row if the caller may access it; otherwise the SAME 404 as an unknown scan (no existence oracle)."""
+    row = db.get(ScanRow, scan_id)
+    if row is None or not can_access(row.token_hash, token, admin=admin):
+        raise IngestionError("scan_not_found", "Scan not found.", 404)
+    return row
+
+
+# ------------------------------------------------------------------ retention / capacity (public demo hygiene)
+_last_purge = 0.0
+PURGE_INTERVAL_SECONDS = 300
+
+
+def purge_expired(db: Session, s: Settings, now: datetime | None = None, *, force: bool = False) -> int:
+    """Delete scans (DB rows + workspace) older than `retention_hours`, plus orphaned workspaces. Throttled.
+    Returns the number of scans removed."""
+    global _last_purge
+    if s.retention_hours <= 0 or (not force and time.monotonic() - _last_purge < PURGE_INTERVAL_SECONDS):
+        return 0
+    _last_purge = time.monotonic()
+    now = now or datetime.now(timezone.utc)
+    removed = 0
+    for sid, created in db.execute(select(ScanRow.id, ScanRow.created_at)).all():
+        if is_expired(created, now, s.retention_hours):
+            delete_rows(db, sid)
+            shutil.rmtree(s.scans_dir / sid, ignore_errors=True)
+            removed += 1
+    # Workspaces whose upload failed half-way or whose row is gone: remove once older than the retention window.
+    if s.scans_dir.is_dir():
+        known = set(db.scalars(select(ScanRow.id)).all())
+        for d in s.scans_dir.iterdir():
+            try:
+                uuid.UUID(d.name, version=4)
+            except ValueError:
+                continue
+            age_h = (now.timestamp() - d.stat().st_mtime) / 3600
+            if d.name not in known and age_h > s.retention_hours:
+                shutil.rmtree(d, ignore_errors=True)
+    if removed:
+        log.info("retention: removed %d scan(s) older than %dh", removed, s.retention_hours)
+    return removed
+
+
+def ensure_capacity(db: Session, s: Settings) -> None:
+    purge_expired(db, s)
+    if s.max_scans > 0 and db.scalar(select(func.count()).select_from(ScanRow)) >= s.max_scans:
+        purge_expired(db, s, force=True)
+        if db.scalar(select(func.count()).select_from(ScanRow)) >= s.max_scans:
+            raise IngestionError("capacity_reached", "The demo server is at its scan capacity. Retry later.", 503)
 
 
 def delete_rows(db: Session, scan_id: str) -> None:
@@ -63,12 +123,32 @@ def analyze_scan(db: Session, scan_id: str, s: Settings, as_of: datetime | None 
         raise IngestionError("scan_not_found", "Scan not found.", 404)
     if row.status == "analyzed":
         raise IngestionError("already_analyzed", "This scan was already analyzed (the extracted source is deleted after analysis).", 409)
+    # Atomic claim: only one request can move ingested -> analyzing. A plain status check is check-then-act, so two
+    # concurrent requests (double click, retry) both passed it and inserted every finding twice.
+    claimed = db.execute(update(ScanRow).where(ScanRow.id == scan_id, ScanRow.status == "ingested")
+                         .values(status="analyzing")).rowcount
+    db.commit()
+    if claimed != 1:
+        raise IngestionError("analysis_in_progress", "This scan is already being analyzed.", 409)
+    db.refresh(row)
+    try:
+        return _analyze_claimed(db, row, scan_id, s, as_of)
+    except BaseException:
+        db.rollback()
+        db.execute(update(ScanRow).where(ScanRow.id == scan_id, ScanRow.status == "analyzing").values(status="ingested"))
+        db.commit()
+        raise
+
+
+def _analyze_claimed(db: Session, row: ScanRow, scan_id: str, s: Settings, as_of: datetime | None) -> dict:
     manifest = load_manifest(scan_id, s)
     tree = workspace_path(scan_id, s) / TREE_DIR
     if not tree.is_dir():
         raise IngestionError("tree_missing", "The extracted source tree is no longer available.", 409)
 
-    res = scan_tree(tree, scan_id=scan_id, services=manifest["services"], repo_name=repo_name_of(manifest), as_of=as_of)
+    started = time.monotonic()
+    res = scan_tree(tree, scan_id=scan_id, services=manifest["services"], repo_name=repo_name_of(manifest), as_of=as_of,
+                    deadline_seconds=s.scan_timeout_seconds, max_file_bytes=s.max_file_bytes)
     services = {x["service"]: x for x in manifest["services"] if x.get("service")}
     scored = [(f, score(f, services.get(f["service"]))) for f in res.findings]
     ranked = sorted(scored, key=lambda p: priority_key(*p))
@@ -96,6 +176,7 @@ def analyze_scan(db: Session, scan_id: str, s: Settings, as_of: datetime | None 
                     "rule_versions": res.rule_versions, "analyzed_at": datetime.now(timezone.utc).isoformat()}
     db.commit()
     purge_tree(scan_id, s)          # 04 section 5: keep findings, delete the extracted source
+    log.info("analyzed scan %s: %d findings, status=%s, %.1fs", scan_id, len(res.findings), res.status, time.monotonic() - started)
     return summarize(db, scan_id)
 
 
@@ -163,6 +244,7 @@ def summarize(db: Session, scan_id: str) -> dict:
         "by_band": bands, "by_primitive": dict(sorted(prim.items())), "by_algorithm": dict(sorted(alg.items(), key=lambda kv: (-kv[1], kv[0]))),
         "services": sorted(svc.values(), key=lambda d: (-d["critical"], -d["quantum_vulnerable"], d["service"])),
         "top_findings": [_card(r) for r in top],
+        "scan_warnings": scan_warnings(scan.analysis),
         "qmp_label": LABEL, "limitations": LIMITATIONS,
     }
 
@@ -253,5 +335,6 @@ def export_csv(rows: list[dict]) -> str:
     w = csv.writer(buf)
     w.writerow(cols)
     for r in rows:
-        w.writerow([("'" + str(r[c]) if isinstance(r[c], str) and r[c][:1] in "=+-@" else r[c]) for c in cols])   # CSV-injection safe
+        # CSV/formula-injection guard (OWASP): neutralise cells a spreadsheet would treat as a formula, incl. TAB/CR prefixes.
+        w.writerow([("'" + r[c] if isinstance(r[c], str) and r[c][:1] in ("=", "+", "-", "@", "\t", "\r") else r[c]) for c in cols])
     return buf.getvalue()

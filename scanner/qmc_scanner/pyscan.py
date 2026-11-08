@@ -41,7 +41,39 @@ def _imports(tree: ast.AST) -> dict[str, str]:
             for a in n.names:
                 if a.name != "*":
                     table[a.asname or a.name] = f"{n.module}.{a.name}"
+    _add_aliases(tree, table)
     return table
+
+
+def _add_aliases(tree: ast.AST, table: dict[str, str]) -> None:
+    """Resolve simple function/class aliases such as `gen = rsa.generate_private_key` (then `gen(...)`).
+
+    Conservative on purpose (no dataflow): the name must be bound exactly once in the file, by a plain
+    `name = dotted.reference` whose root is an imported name, and must not also be an import. Anything
+    else (reassignment, tuple targets, augmented assignment, loops, `getattr`) is left unresolved."""
+    bindings: dict[str, int] = {}
+    candidates: dict[str, ast.AST] = {}
+    for n in ast.walk(tree):
+        targets: list[ast.AST] = []
+        if isinstance(n, ast.Assign):
+            targets = n.targets
+            if len(n.targets) == 1 and isinstance(n.targets[0], ast.Name) and isinstance(n.value, (ast.Attribute, ast.Name)):
+                candidates[n.targets[0].id] = n.value
+        elif isinstance(n, (ast.AnnAssign, ast.AugAssign, ast.For, ast.AsyncFor, ast.With, ast.AsyncWith, ast.NamedExpr)):
+            targets = [getattr(n, "target", None)] if not isinstance(n, (ast.With, ast.AsyncWith)) else \
+                      [i.optional_vars for i in n.items]
+        elif isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            bindings[n.name] = bindings.get(n.name, 0) + 1
+        for t in targets:
+            for x in ast.walk(t) if t is not None else ():
+                if isinstance(x, ast.Name):
+                    bindings[x.id] = bindings.get(x.id, 0) + 1
+    for name, value in candidates.items():
+        if bindings.get(name) != 1 or name in table:
+            continue
+        parts = _dotted(value)
+        if parts and parts[0] in table and parts[0] != name:
+            table[name] = ".".join([table[parts[0]], *parts[1:]])
 
 
 def _segment(lines: list[str], node: ast.AST) -> str:

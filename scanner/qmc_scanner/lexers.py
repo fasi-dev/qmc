@@ -18,7 +18,10 @@ _DQ = r'"(?:\\[\s\S]|[^"\\\n])*(?:"|(?=\n)|\\?\Z)'
 _SQ = r"'(?:\\[\s\S]|[^'\\\n])*(?:'|(?=\n)|\\?\Z)"
 _COMMENTS = r'//[^\n]*|/\*[\s\S]*?\*/|/\*[\s\S]*\Z'
 _JAVA = re.compile(_COMMENTS + r'|"""[\s\S]*?"""|' + _DQ + "|" + _SQ)
-_JS = re.compile(_COMMENTS + "|" + _DQ + "|" + _SQ + r"|`(?:\\[\s\S]|[^`\\])*(?:`|\\?\Z)|/")
+_JS = re.compile(_COMMENTS + "|" + _DQ + "|" + _SQ + r"|`|/")
+# Inside a template interpolation `${ ... }` braces must also be tracked to find the closing '}'.
+_JS_IN_TEMPLATE = re.compile(_COMMENTS + "|" + _DQ + "|" + _SQ + r"|`|/|[{}]")
+_MAX_TEMPLATE_DEPTH = 32
 # Regex literals are only attempted after an operator-ish token, and the body is length-bounded (DoS guard).
 _REGEX_LIT = re.compile(r"/(?![/*])(?:\\.|\[(?:\\.|[^\]\\\n]){0,200}\]|[^/\\\n\[]){1,200}/[A-Za-z]*")
 _REGEX_PREV = set("(,=:[!&|?{};+-*%<>~^")
@@ -55,19 +58,62 @@ def _regex_allowed(text: str, start: int) -> bool:
     return False
 
 
+def _template_part(text: str, i: int) -> tuple[int, bool]:
+    """Scan template-literal text starting at i (just after '`' or an interpolation's closing '}').
+    Returns (end, opened): end is just past the closing '`' (opened=False) or past '${' (opened=True); len(text) at EOF."""
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c == "\\":
+            i += 2
+        elif c == "`":
+            return i + 1, False
+        elif c == "$" and i + 1 < n and text[i + 1] == "{":
+            return i + 2, True
+        else:
+            i += 1
+    return n, False
+
+
 def lex(text: str, lang: str) -> Lexed:
-    token = _JS if lang == "js" else _JAVA
+    js = lang == "js"
+    token = _JS if js else _JAVA
     newlines = [i for i, ch in enumerate(text) if ch == "\n"]
     out: list[str] = []
     mask = bytearray(len(text))
     comments: list[tuple[int, str]] = []
     pos = cursor = 0
+    braces: list[int] = []      # one open-brace counter per enclosing `${ ... }` (JS template interpolation)
     while True:
-        m = token.search(text, pos)
+        m = (_JS_IN_TEMPLATE if braces else token).search(text, pos)
         if not m:
             break
         s, e = m.span()
         tok = m.group(0)
+        if tok == "{":
+            braces[-1] += 1
+            pos = e
+            continue
+        if tok == "}" and braces[-1] > 0:
+            braces[-1] -= 1
+            pos = e
+            continue
+        if js and tok in ("`", "}"):
+            # Template literal text is a string (kind 1); the code inside `${ ... }` stays code, so crypto calls
+            # written in an interpolation are scanned like any other call.
+            if tok == "}":
+                braces.pop()
+            e, opened = _template_part(text, e)
+            if opened:
+                if len(braces) >= _MAX_TEMPLATE_DEPTH:   # pathological nesting: treat the rest as one string
+                    e, opened = len(text), False
+                else:
+                    braces.append(0)
+            out.append(text[cursor:s])
+            out.append(text[s:e])
+            mask[s:e] = b"\x01" * (e - s)
+            cursor = pos = e
+            continue
         if tok.startswith(("//", "/*")):
             kind = 2
         elif tok == "/":

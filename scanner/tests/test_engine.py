@@ -27,7 +27,7 @@ def test_findings_match_schema_exactly(scan):
         assert tuple(f) == FINDING_KEYS and tuple(f["metadata"]) == METADATA_KEYS
         validate_finding(f)
         assert re.fullmatch(r"CRYPTO-\d{3,}", f["id"]) and f["scan_id"] == "11111111-1111-4111-8111-111111111111"
-        assert f["engine_version"] == "0.1.0" and re.fullmatch(r"\d+\.\d+\.\d+", f["rule_version"])
+        assert f["engine_version"] == "0.3.0" and re.fullmatch(r"\d+\.\d+\.\d+", f["rule_version"])
         assert isinstance(f["line_start"], int) and isinstance(f["confidence"], float) and isinstance(f["quantum_vulnerable"], bool)
         assert f["metadata"]["in_dead_code"] is False
     json.dumps(res.to_dict())   # fully JSON-serialisable
@@ -218,3 +218,58 @@ def test_many_files_scale(scan):
     t = time.time()
     res = scan(files)
     assert len(res.findings) == 600 and time.time() - t < 20
+
+
+# ---------------------------------------------------------------- encoding regressions
+@pytest.mark.parametrize("fname,src,alg", [
+    ("bom.py", "import hashlib\nh = hashlib.sha1(b'x')\n", "SHA-1"),
+    ("Bom.java", 'import java.security.*;\nclass A { Object k = KeyPairGenerator.getInstance("RSA"); }\n', "RSA"),
+    ("bom.js", "const crypto = require('crypto');\nconst h = crypto.createHash('sha256');\n", "SHA-256"),
+])
+def test_utf8_bom_does_not_hide_findings(scan, fname, src, alg):
+    """Regression: a UTF-8 BOM made Python files fail to parse (parse_error, zero findings)."""
+    res = scan({fname: b"\xef\xbb\xbf" + src.encode()})
+    assert res.files_skipped == []
+    f = code_findings(res)
+    assert [x["algorithm"] for x in f] == [alg] and f[0]["line_start"] == 2
+
+
+# ---------------------------------------------------------------- JS/TS template literals
+JS_CRYPTO = "const crypto = require('crypto');\n"
+
+
+def test_crypto_call_inside_template_interpolation_is_detected(scan):
+    """Regression: the whole template literal was masked as a string, hiding calls inside ${...}."""
+    src = JS_CRYPTO + "const a = `digest=${crypto.createHash('sha256').update(x).digest('hex')}`;\n"
+    (f,) = code_findings(scan({"a.ts": src}))
+    assert (f["algorithm"], f["line_start"]) == ("SHA-256", 2)
+
+
+def test_template_literal_text_is_still_a_string(scan):
+    src = JS_CRYPTO + "const doc = `call crypto.createHash('sha1') to hash ${name}`;\n"
+    assert code_findings(scan({"a.js": src})) == []
+
+
+def test_nested_templates_braces_and_line_numbers(scan):
+    src = (JS_CRYPTO + "const s = `outer ${ `inner ${ {a: 1}.a } text` } and\n"
+           "${ (() => { return crypto.createHash('sha512'); })() }`;\n"
+           "const after = crypto.createHash('sha384');\n")
+    got = sorted((f["algorithm"], f["line_start"]) for f in code_findings(scan({"a.js": src})))
+    assert got == [("SHA-384", 4), ("SHA-512", 3)]
+
+
+def test_unterminated_template_is_bounded(scan):
+    src = JS_CRYPTO + "const s = `never closed ${ crypto.createHash('sha256') \n" + "x\n" * 1000
+    res = scan({"a.js": src})
+    assert res.status == "complete" and [f["algorithm"] for f in code_findings(res)] == ["SHA-256"]
+
+
+@pytest.mark.parametrize("name,src", [
+    ("template open flood", ("`${" * 3000 + "\n") * 100),
+    ("backtick flood", ("`" * 9000 + "\n") * 100),
+    ("brace flood in interpolation", "`${" + ("{" * 5000 + "\n") * 80),
+])
+def test_template_pathological_inputs_finish_quickly(scan, name, src):
+    t = time.time()
+    res = scan({"a.js": src})
+    assert time.time() - t < 15 and res.status == "complete" and res.files_skipped == [], name

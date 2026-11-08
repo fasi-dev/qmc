@@ -18,6 +18,8 @@ BANDS = ("Informational", "Review", "High", "Critical")
 KE_ALGORITHMS = {"ECDH", "DH", "DH/ECDH"}
 SIGNATURE_ONLY = {"ECDSA", "EdDSA", "DSA", "RSA/ECDSA"}
 HYGIENE_RULES = {"CFG-NGINX-TLS-001", "CFG-NGINX-CIPHER-004", "CFG-STRUCT-TLS-001", "CFG-STRUCT-TLS-002"}
+BROKEN_HASHES = {"SHA-1", "MD5"}   # practical collisions today: classical hygiene, not a quantum issue (07 R-09)
+WEAK_CIPHERS = {"3DES", "DES", "RC4", "Blowfish"}   # 64-bit blocks / short keys / keystream biases: classical hygiene
 
 
 def round_half_up(x: float) -> int:
@@ -61,7 +63,7 @@ def _qe(f: dict, role: str | None) -> tuple[int, str]:
             return 3, f"{f['algorithm']} used for digital signatures: quantum-vulnerable (forgeable on a future quantum computer)."
         return 4, (f"{f['algorithm']} key generation: the role cannot be determined from key generation alone, so it is "
                    "conservatively treated like key establishment (06 Example B).")
-    if f["rule_id"] in HYGIENE_RULES or f["algorithm"] == "SHA-1":
+    if f["rule_id"] in HYGIENE_RULES or f["algorithm"] in BROKEN_HASHES or f["algorithm"] in WEAK_CIPHERS:
         return 1, f"{f['algorithm']} is a classical-hygiene issue (deprecated for non-quantum reasons), not a quantum vulnerability."
     if f["primitive"] == "symmetric" and f["metadata"].get("key_size") == 128:
         return 1, "AES-128 has reduced Grover headroom; AES-256 is recommended for long-term data."
@@ -97,6 +99,8 @@ def score(f: dict, service_meta: dict | None) -> dict | None:
     role = role_of(f)
     qe, qe_why = _qe(f, role)
     mc, mc_why = _mc(f, role)
+    # AES-128 gets QE 1 for reduced Grover headroom. That is not "classical hygiene" (nothing is deprecated), so it is labelled separately.
+    grover_only = qe == 1 and f["primitive"] == "symmetric" and f["algorithm"] not in WEAK_CIPHERS
 
     def meta_factor(key: str, field: str, table: dict | None, label: str):
         v = meta.get(field)
@@ -122,11 +126,12 @@ def score(f: dict, service_meta: dict | None) -> dict | None:
     if qe == 0:
         band, cap_reason = "Informational", "Guard rule: no quantum exposure, so Informational regardless of context."
     elif qe == 1 and BANDS.index(band) > 1:
-        band, cap_reason = "Review", "Capped at Review: classical hygiene issue, not a quantum vulnerability."
+        band, cap_reason = "Review", ("Capped at Review: symmetric key-size margin (Grover), not a Shor-type quantum vulnerability."
+                                      if grover_only else "Capped at Review: classical hygiene issue, not a quantum vulnerability.")
     elif f["confidence_level"] != "high" and BANDS.index(band) > 1:
         band, cap_reason = "Review", f"Capped at Review: confidence is {f['confidence_level']}; requires human review."
     if qe == 1:
-        badges.append("classical hygiene")
+        badges.append("symmetric key size" if grover_only else "classical hygiene")
     if f["metadata"]["test_path"]:
         badges.append("test/dev path")
 
@@ -135,6 +140,10 @@ def score(f: dict, service_meta: dict | None) -> dict | None:
     if role == "key-establishment" and f["primitive"] == "public-key":
         if lifetime is None:
             badges.append("metadata missing: data_lifetime_years")
+        if lifetime is None or ds_src != "service.yaml" or ie_src != "service.yaml":
+            # The midpoint defaults (DS 2, IE 1.5) can never meet the HNDL thresholds, so without real metadata HNDL would
+            # silently read as "no". Say explicitly that it was not assessed instead (the flag stays False).
+            badges.append("HNDL not assessed: metadata missing")
         elif ds >= 3 and ie >= 2 and lifetime >= 5:
             sev = "elevated" if lifetime >= 10 else "noted"
             hndl = {"flag": True, "severity": sev, "text": (

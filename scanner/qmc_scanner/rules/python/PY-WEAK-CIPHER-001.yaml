@@ -1,0 +1,42 @@
+rule_id: PY-WEAK-CIPHER-001
+rule_version: 1.0.0
+language: python
+description: Legacy block/stream ciphers (3DES, DES, RC4, Blowfish) in PyCryptodome and cryptography (incl. hazmat.decrepit)
+library: pycryptodome/cryptography
+api: cipher constructor
+algorithm: 3DES
+primitive: symmetric
+operation: encryption
+confidence: 0.95
+match:
+  type: python_call
+  value_from: fqn
+  value_map:
+    Crypto.Cipher.DES3.new:
+      algorithm: 3DES
+    Cryptodome.Cipher.DES3.new:
+      algorithm: 3DES
+    Crypto.Cipher.DES.new:
+      algorithm: DES
+    Cryptodome.Cipher.DES.new:
+      algorithm: DES
+    Crypto.Cipher.ARC4.new:
+      algorithm: RC4
+    Cryptodome.Cipher.ARC4.new:
+      algorithm: RC4
+    Crypto.Cipher.Blowfish.new:
+      algorithm: Blowfish
+    Cryptodome.Cipher.Blowfish.new:
+      algorithm: Blowfish
+    cryptography.hazmat.primitives.ciphers.algorithms.TripleDES:
+      algorithm: 3DES
+    cryptography.hazmat.primitives.ciphers.algorithms.ARC4:
+      algorithm: RC4
+    cryptography.hazmat.primitives.ciphers.algorithms.Blowfish:
+      algorithm: Blowfish
+    cryptography.hazmat.decrepit.ciphers.algorithms.TripleDES:
+      algorithm: 3DES
+    cryptography.hazmat.decrepit.ciphers.algorithms.ARC4:
+      algorithm: RC4
+    cryptography.hazmat.decrepit.ciphers.algorithms.Blowfish:
+      algorithm: Blowfish

@@ -1,7 +1,10 @@
 """SQLite persistence (SQLAlchemy 2.x; schema kept PostgreSQL-compatible: plain columns + JSON)."""
 from __future__ import annotations
 
-from sqlalchemy import JSON, Boolean, Float, Integer, String, create_engine
+import logging
+
+from sqlalchemy import JSON, Boolean, Float, Index, Integer, String, create_engine, inspect, text
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from .config import Settings
@@ -15,15 +18,18 @@ class ScanRow(Base):
     __tablename__ = "scans"
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     created_at: Mapped[str] = mapped_column(String(40))
-    status: Mapped[str] = mapped_column(String(16))            # ingested | analyzed
+    status: Mapped[str] = mapped_column(String(16))            # ingested | analyzing | analyzed
     original_filename: Mapped[str] = mapped_column(String(120))
     repo_name: Mapped[str] = mapped_column(String(120), default="repo")
     manifest: Mapped[dict] = mapped_column(JSON)               # ingestion summary (no file list)
     analysis: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)   # sha256 of the per-scan access token
 
 
 class FindingRow(Base):
     __tablename__ = "findings"
+    # One row per finding id per scan: makes a duplicated analysis fail loudly instead of double-counting.
+    __table_args__ = (Index("uq_findings_scan_fid", "scan_id", "fid", unique=True),)
     pk: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     scan_id: Mapped[str] = mapped_column(String(36), index=True)
     fid: Mapped[str] = mapped_column(String(16))               # CRYPTO-001
@@ -50,6 +56,22 @@ class FindingRow(Base):
 
 
 _factories: dict[str, sessionmaker] = {}
+log = logging.getLogger("qmc.db")
+
+
+def upgrade_schema(engine: Engine) -> None:
+    """Additive, idempotent upgrades for databases created by older versions (there is no Alembic yet).
+    create_all() only creates missing TABLES, so new columns/indexes on existing tables are added here."""
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        if "token_hash" not in {c["name"] for c in insp.get_columns("scans")}:
+            conn.execute(text("ALTER TABLE scans ADD COLUMN token_hash VARCHAR(64)"))
+            log.info("schema upgrade: added scans.token_hash (existing scans become admin-only)")
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_findings_scan_fid ON findings (scan_id, fid)"))
+    except Exception:  # pre-existing duplicate rows: keep serving, but say so
+        log.warning("schema upgrade: could not create unique index on findings(scan_id, fid); duplicates exist")
 
 
 def session_factory(s: Settings) -> sessionmaker:
@@ -59,6 +81,7 @@ def session_factory(s: Settings) -> sessionmaker:
         path.parent.mkdir(parents=True, exist_ok=True)
         engine = create_engine(f"sqlite:///{path}", connect_args={"check_same_thread": False})
         Base.metadata.create_all(engine)
+        upgrade_schema(engine)
         _factories[key] = sessionmaker(engine, expire_on_commit=False)
     return _factories[key]
 

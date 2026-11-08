@@ -48,15 +48,26 @@ PY = [
      [("PY-CRYPTOGRAPHY-AES-001", "AES", "encryption", None), ("PY-CRYPTOGRAPHY-AES-002", "AES", "key_generation", 128)]),
     ("aes256_class", "t.py", f"from {PYC}.ciphers import algorithms\na = algorithms.AES256(k)\n", [("PY-CRYPTOGRAPHY-AES-001", "AES", "encryption", 256)]),
     ("hashlib_named", "t.py", "import hashlib\na = hashlib.sha1(b)\nb = hashlib.sha3_256(b)\nc = hashlib.sha256(b)\nd = hashlib.md5(b)\n",
-     [("PY-HASHLIB-001", "SHA-1", "hashing", None), ("PY-HASHLIB-001", "SHA-3", "hashing", None), ("PY-HASHLIB-001", "SHA-256", "hashing", None)]),
+     [("PY-HASHLIB-001", "SHA-1", "hashing", None), ("PY-HASHLIB-001", "SHA-3", "hashing", None), ("PY-HASHLIB-001", "SHA-256", "hashing", None),
+      ("PY-HASHLIB-001", "MD5", "hashing", None)]),
     ("hashlib_new", "t.py", "import hashlib\nh = hashlib.new('sha1')\nk = hashlib.pbkdf2_hmac('sha256', pw, salt, 1000)\n",
      [("PY-HASHLIB-002", "SHA-1", "hashing", None), ("PY-HASHLIB-002", "SHA-256", "hashing", None)]),
     ("cryptography_hash", "t.py", f"from {PYC} import hashes\nd = hashes.Hash(hashes.SHA1())\n", [("PY-CRYPTOGRAPHY-HASH-001", "SHA-1", "hashing", None)]),
+    ("md5_variants", "t.py", f"import hashlib\nfrom {PYC} import hashes\nfrom Crypto.Hash import MD5\na = hashlib.new('md5', usedforsecurity=False)\nb = hashes.Hash(hashes.MD5())\nc = MD5.new(b)\n",
+     [("PY-HASHLIB-002", "MD5", "hashing", None), ("PY-CRYPTOGRAPHY-HASH-001", "MD5", "hashing", None), ("PY-PYCRYPTODOME-HASH-001", "MD5", "hashing", None)]),
     ("pycryptodome_hash", "t.py", "from Crypto.Hash import SHA256\nh = SHA256.new(b)\n", [("PY-PYCRYPTODOME-HASH-001", "SHA-256", "hashing", None)]),
     ("hmac", "t.py", "import hmac\nm = hmac.new(k, b, 'sha256')\nd = hmac.digest(k, b, 'sha256')\n",
      [("PY-HMAC-001", "HMAC", "mac_generation", None), ("PY-HMAC-001", "HMAC", "mac_generation", None)]),
     ("oqs", "t.py", "import oqs\nk = oqs.KeyEncapsulation('ML-KEM-768')\ns = oqs.Signature('ML-DSA-65')\nh = oqs.Signature('SLH-DSA-SHA2-128s')\n",
      [("PY-OQS-KEM-001", "ML-KEM", "key_generation", None), ("PY-OQS-SIG-001", "ML-DSA", "key_generation", None), ("PY-OQS-SIG-001", "SLH-DSA", "key_generation", None)]),
+    ("weak_ciphers_pycryptodome", "t.py", "from Crypto.Cipher import DES3, DES, ARC4\nfrom Cryptodome.Cipher import Blowfish\na = DES3.new(k, DES3.MODE_CBC, iv)\nb = DES.new(k, DES.MODE_ECB)\nc = ARC4.new(k)\nd = Blowfish.new(k, Blowfish.MODE_CBC, iv)\n",
+     [("PY-WEAK-CIPHER-001", "3DES", "encryption", None), ("PY-WEAK-CIPHER-001", "DES", "encryption", None),
+      ("PY-WEAK-CIPHER-001", "RC4", "encryption", None), ("PY-WEAK-CIPHER-001", "Blowfish", "encryption", None)]),
+    ("weak_ciphers_cryptography", "t.py", f"from {PYC}.ciphers import algorithms\nfrom cryptography.hazmat.decrepit.ciphers import algorithms as old\na = algorithms.TripleDES(k)\nb = old.ARC4(k)\nc = old.Blowfish(k)\n",
+     [("PY-WEAK-CIPHER-001", "3DES", "encryption", None), ("PY-WEAK-CIPHER-001", "RC4", "encryption", None), ("PY-WEAK-CIPHER-001", "Blowfish", "encryption", None)]),
+    ("function_alias_resolved", "t.py", f"from {PYC}.asymmetric import rsa\ngen = rsa.generate_private_key\nkey = gen(65537, 3072)\n",
+     [("PY-CRYPTOGRAPHY-RSA-001", "RSA", "key_generation", 3072)]),
+    ("module_alias_resolved", "t.py", "import hashlib\nH = hashlib\nd = H.sha1(b'x')\n", [("PY-HASHLIB-001", "SHA-1", "hashing", None)]),
 ]
 
 JAVA = [
@@ -76,7 +87,8 @@ JAVA = [
     ("cipher_aes", JH + 'Cipher.getInstance("AES/GCM/NoPadding");\nCipher.getInstance("AES_256/GCM/NoPadding");\n', [("JAVA-JCA-CIPHER-002", "AES", "encryption", None), ("JAVA-JCA-CIPHER-002", "AES", "encryption", 256)]),
     ("keygen_aes", JH + 'KeyGenerator kg = KeyGenerator.getInstance("AES");\nkg.init(256);\n', [("JAVA-JCA-KEYGEN-001", "AES", "key_generation", 256)]),
     ("messagedigest", JH + 'MessageDigest.getInstance("SHA-1");\nMessageDigest.getInstance("SHA-256");\nMessageDigest.getInstance("SHA3-512");\nMessageDigest.getInstance("MD5");\n',
-     [("JAVA-JCA-MD-001", "SHA-1", "hashing", None), ("JAVA-JCA-MD-001", "SHA-256", "hashing", None), ("JAVA-JCA-MD-001", "SHA-3", "hashing", None)]),
+     [("JAVA-JCA-MD-001", "SHA-1", "hashing", None), ("JAVA-JCA-MD-001", "SHA-256", "hashing", None), ("JAVA-JCA-MD-001", "SHA-3", "hashing", None),
+      ("JAVA-JCA-MD-001", "MD5", "hashing", None)]),
     ("mac", JH + 'Mac m = Mac.getInstance("HmacSHA256");\n', [("JAVA-JCA-MAC-001", "HMAC", "mac_generation", None)]),
     ("bouncycastle", "import org.bouncycastle.crypto.signers.ECDSASigner;\nvar a = new ECDSASigner();\nvar b = new RSAKeyPairGenerator();\nvar c = new SHA256Digest();\nvar d = new HMac(new SHA256Digest());\n",
      [("JAVA-BC-001", "ECDSA", "signature", None), ("JAVA-BC-001", "RSA", "key_generation", None), ("JAVA-BC-001", "SHA-256", "hashing", None),
@@ -84,6 +96,9 @@ JAVA = [
     ("pqc", JH + 'KEM k = KEM.getInstance("ML-KEM-768");\nKeyPairGenerator.getInstance("ML-DSA");\nKeyPairGenerator.getInstance("ML-KEM");\nvar s = MLDSAParameterSpec.ml_dsa_65;\nvar t = MLKEMParameterSpec.ml_kem_768;\n',
      [("JAVA-PQC-002", "ML-KEM", "encapsulation", None), ("JAVA-JCA-KPG-001", "ML-DSA", "key_generation", None), ("JAVA-JCA-KPG-001", "ML-KEM", "key_generation", None),
       ("JAVA-PQC-001", "ML-DSA", "key_generation", None), ("JAVA-PQC-001", "ML-KEM", "key_generation", None)]),
+    ("cipher_weak", JH + 'Cipher.getInstance("DESede/CBC/PKCS5Padding");\nCipher.getInstance("DES");\nCipher.getInstance("RC4");\nCipher.getInstance("ARCFOUR");\nCipher.getInstance("Blowfish/ECB/NoPadding");\n',
+     [("JAVA-JCA-CIPHER-003", "3DES", "encryption", None), ("JAVA-JCA-CIPHER-003", "DES", "encryption", None), ("JAVA-JCA-CIPHER-003", "RC4", "encryption", None),
+      ("JAVA-JCA-CIPHER-003", "RC4", "encryption", None), ("JAVA-JCA-CIPHER-003", "Blowfish", "encryption", None)]),
 ]
 
 JSH = "const crypto = require('crypto');\n"
@@ -101,7 +116,8 @@ JS = [
     ("rsa_enc", "t.js", JSH + "crypto.publicEncrypt(key, buf);\ncrypto.privateDecrypt(key, buf);\n",
      [("JS-NODE-CRYPTO-RSA-ENC-001", "RSA", "encryption", None), ("JS-NODE-CRYPTO-RSA-ENC-001", "RSA", "decryption", None)]),
     ("hash", "t.js", JSH + "crypto.createHash('sha1');\ncrypto.createHash(\"sha256\");\ncrypto.createHash('sha3-256');\ncrypto.createHash('md5');\n",
-     [("JS-NODE-CRYPTO-HASH-001", "SHA-1", "hashing", None), ("JS-NODE-CRYPTO-HASH-001", "SHA-256", "hashing", None), ("JS-NODE-CRYPTO-HASH-001", "SHA-3", "hashing", None)]),
+     [("JS-NODE-CRYPTO-HASH-001", "SHA-1", "hashing", None), ("JS-NODE-CRYPTO-HASH-001", "SHA-256", "hashing", None), ("JS-NODE-CRYPTO-HASH-001", "SHA-3", "hashing", None),
+      ("JS-NODE-CRYPTO-HASH-001", "MD5", "hashing", None)]),
     ("hmac", "t.js", JSH + "crypto.createHmac('sha256', key);\n", [("JS-NODE-CRYPTO-HMAC-001", "HMAC", "mac_generation", None)]),
     ("aes", "t.js", JSH + "crypto.createCipheriv('aes-256-gcm', k, iv);\ncrypto.createDecipheriv('aes-128-cbc', k, iv);\n",
      [("JS-NODE-CRYPTO-AES-001", "AES", "encryption", 256), ("JS-NODE-CRYPTO-AES-001", "AES", "decryption", 128)]),
@@ -117,6 +133,11 @@ JS = [
      [("JS-CRYPTOJS-001", "AES", "encryption", None), ("JS-CRYPTOJS-001", "SHA-1", "hashing", None), ("JS-CRYPTOJS-001", "HMAC", "mac_generation", None)]),
     ("tweetnacl", "t.js", "const nacl = require('tweetnacl');\nnacl.sign.keyPair();\nnacl.sign(msg, sk);\nnacl.sign.detached(m, sk);\nnacl.sign.open(sm, pk);\n",
      [("JS-TWEETNACL-001", "EdDSA", "key_generation", None), ("JS-TWEETNACL-001", "EdDSA", "signature", None), ("JS-TWEETNACL-001", "EdDSA", "signature", None), ("JS-TWEETNACL-001", "EdDSA", "verification", None)]),
+    ("weak_cipher", "t.js", JSH + "crypto.createCipheriv('des-ede3-cbc', k, iv);\ncrypto.createDecipheriv('des-cbc', k, iv);\ncrypto.createCipheriv('rc4', k, null);\ncrypto.createDecipheriv('bf-cbc', k, iv);\n",
+     [("JS-NODE-CRYPTO-WEAK-001", "3DES", "encryption", None), ("JS-NODE-CRYPTO-WEAK-002", "DES", "decryption", None),
+      ("JS-NODE-CRYPTO-WEAK-001", "RC4", "encryption", None), ("JS-NODE-CRYPTO-WEAK-002", "Blowfish", "decryption", None)]),
+    ("cryptojs_weak", "t.js", "import CryptoJS from 'crypto-js';\nCryptoJS.TripleDES.encrypt(m, k);\nCryptoJS.RC4.encrypt(m, k);\n",
+     [("JS-CRYPTOJS-001", "3DES", "encryption", None), ("JS-CRYPTOJS-001", "RC4", "encryption", None)]),
 ]
 
 # Configuration / static-text cases: (id, filename, source, expected [(rule_id, algorithm, operation, key_size)])

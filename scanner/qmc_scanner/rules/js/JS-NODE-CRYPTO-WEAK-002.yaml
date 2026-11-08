@@ -1,0 +1,32 @@
+rule_id: JS-NODE-CRYPTO-WEAK-002
+rule_version: 1.0.0
+language: js
+description: createDecipheriv/createDecipher with a legacy cipher (des-ede3*, des*, rc4*, bf*/blowfish)
+library: node:crypto
+api: createDecipheriv
+algorithm: 3DES
+primitive: symmetric
+operation: decryption
+confidence: 0.95
+match:
+  type: regex
+  file_requires: '[''"](?:node:)?crypto[''"]'
+  pattern: \bcreateDecipher(?:iv)?\s*\(\s*['\"](?P<alg>des-ede3[a-z0-9-]*|des3|des-ede[a-z0-9-]*|des-[a-z0-9]+|des|rc4[a-z0-9-]*|bf-[a-z0-9]+|bf|blowfish)['\"]
+  flags:
+  - IGNORECASE
+  value_group: alg
+  value_map:
+    des-ede3*:
+      algorithm: 3DES
+    des3:
+      algorithm: 3DES
+    des-ede*:
+      algorithm: 3DES
+    des*:
+      algorithm: DES
+    rc4*:
+      algorithm: RC4
+    bf*:
+      algorithm: Blowfish
+    blowfish:
+      algorithm: Blowfish

@@ -1,9 +1,25 @@
+import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
 from qmc_scanner import scan_tree
+
+_MAX_ID_CHARS = 40
+
+
+def pytest_make_parametrize_id(config, val, argname):
+    """Keep parametrized test IDs short and deterministic.
+
+    Several DoS/pathological tests parametrize multi-megabyte source strings. By default pytest embeds the
+    whole value in the test ID, and pytest exports the current test ID in the PYTEST_CURRENT_TEST environment
+    variable. On Windows that fails with "ValueError: the environment variable is longer than 32767 characters".
+    Long values are therefore replaced by '<argname>-<length>-<sha1 prefix>' (stable across runs)."""
+    if isinstance(val, (str, bytes)) and len(val) > _MAX_ID_CHARS:
+        raw = val if isinstance(val, bytes) else val.encode("utf-8", "surrogatepass")
+        return f"{argname}-{len(val)}-{hashlib.sha1(raw).hexdigest()[:8]}"
+    return None
 
 
 def write_tree(root: Path, files: dict[str, str | bytes]) -> Path:

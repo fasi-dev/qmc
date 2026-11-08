@@ -23,7 +23,10 @@ describe("demo flow: scan -> dashboard -> inventory -> finding detail", () => {
     expect(await screen.findByText("Scan complete", {}, { timeout: 20000 })).toBeTruthy();
     expect(screen.getByText(/crypto findings/)).toBeTruthy();
     expect(screen.getByText(/Rules that fired/)).toBeTruthy();
-    expect(localStorage.getItem("qmc.scanId")).toMatch(/^[0-9a-f-]{36}$/);
+    const id = localStorage.getItem("qmc.scanId")!;
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+    // the per-scan access token is kept in this browser and is what authorizes every later request
+    expect(JSON.parse(localStorage.getItem("qmc.tokens") ?? "{}")[id]).toMatch(/^[A-Za-z0-9_-]{40,}$/);
   });
 
   it("dashboard shows real KPIs, band distribution, ranked findings and services", async () => {
@@ -38,7 +41,9 @@ describe("demo flow: scan -> dashboard -> inventory -> finding detail", () => {
     expect(first.textContent).toMatch(/Critical · 20/);
     expect(first.textContent).toMatch(/ECDH/);
     expect(first.textContent).toMatch(/HNDL elevated/);
-    expect(screen.getByText("Download report (Markdown)").getAttribute("href")).toMatch(/\/report\.md$/);
+    // report is an authenticated download (token header), so it is a button, not a plain link
+    expect(screen.getByRole("button", { name: "Download report (Markdown)" })).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/Scan may be incomplete/);
     expect(screen.getByText("Services and migration status")).toBeTruthy();
     expect(screen.getByText("settlement-worker")).toBeTruthy();
     expect(document.body.textContent).toMatch(/not a security certification/i);
@@ -133,5 +138,22 @@ describe("demo flow: scan -> dashboard -> inventory -> finding detail", () => {
     expect(document.querySelector(".detailrow")).toBeTruthy();
     expect(screen.getByText(/Candidate directions, not certifications/)).toBeTruthy();
     expect(screen.getByText(/Crypto-agility recommendations/)).toBeTruthy();
+  });
+
+  it("table rows are keyboard-accessible links", async () => {
+    go("#/inventory");
+    render(<App />);
+    await waitFor(() => expect(document.querySelectorAll("table.inv tbody tr.click").length).toBeGreaterThan(1));
+    const row = document.querySelector("table.inv tbody tr.click") as HTMLElement;
+    expect(row.getAttribute("tabindex")).toBe("0");
+    expect(row.getAttribute("role")).toBeNull();          // keeps the implicit table "row" role
+    fireEvent.keyDown(row, { key: "Enter" });
+    await waitFor(() => expect(window.location.hash).toMatch(/^#\/finding\/CRYPTO-\d+$/));
+  });
+
+  it("a scan id without its token is treated as not found (no access)", async () => {
+    const id = localStorage.getItem("qmc.scanId")!;
+    const r = await fetch(`http://127.0.0.1:8031/api/scans/${id}/summary`);
+    expect(r.status).toBe(404);
   });
 });

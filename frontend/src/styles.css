@@ -93,3 +93,7 @@ input[type="file"] { font: inherit; }
 .crumb { margin: 0 0 8px; } .empty-state { text-align: center; padding: 40px; } .click a { color: inherit; }
 
 .detailrow td { background: var(--paper); padding: 12px 18px; font-size: .88rem; } .detailrow ul, .detailrow ol { margin: 4px 0 8px; padding-left: 20px; }
+
+.callout.warn { border-color: var(--band-high); }
+.callout.warn ul { margin: 6px 0 0; padding-left: 18px; }
+tr.click:focus-visible { outline: 2px solid var(--band-review); outline-offset: -2px; }

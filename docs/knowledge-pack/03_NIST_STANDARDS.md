@@ -57,6 +57,16 @@ official source states a date, it is quoted with its source.
 - **FIPS 186-5** remains the current classical signature standard (RSA, ECDSA, EdDSA, DSA)
   — these are the **sources** of migration, not destinations.
   Source: https://csrc.nist.gov/pubs/fips/186-5/final
+- **NIST IR 8547 (Final, 2026-10-27), "Transition to Post-Quantum Cryptography Standards"** *(added during the
+  Nov 2026 audit)*: NIST will **deprecate** quantum-vulnerable public-key cryptography (RSA, finite-field and
+  elliptic-curve DH/MQV, ECDSA, EdDSA) **after 2030** and **disallow** it under NIST standards and guidelines
+  **after 2035**. "Deprecated" means it may still be used if the data owner accepts the risk; "disallowed" means
+  not allowed for the stated purpose. Federal high-value / high-impact systems have earlier deadlines (key
+  establishment by 2030-12-31, signatures by 2031-12-31, per EO 14412 / OMB M-26-15). NIST does not expect to
+  transition away from its symmetric standards (e.g. AES, SHA-2/SHA-3, HMAC) as part of the PQC migration.
+  The initial public draft (Nov 2024) is withdrawn. Source: https://csrc.nist.gov/pubs/ir/8547/final
+  (PDF: https://nvlpubs.nist.gov/nistpubs/ir/2026/NIST.IR.8547.pdf). QMC uses these dates only as context in
+  documentation; they are **not** an input to the QMP score.
 
 ## 5. NIST PQC migration guidance
 

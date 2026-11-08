@@ -1,5 +1,5 @@
 rule_id: JS-FORGE-HASH-001
-rule_version: 1.0.0
+rule_version: 1.1.0
 language: js
 description: node-forge message digests
 library: node-forge
@@ -11,9 +11,11 @@ confidence: 0.95
 match:
   type: regex
   file_requires: '[''\"]node-forge[''\"]'
-  pattern: \bforge\s*\.\s*md\s*\.\s*(?P<alg>sha1|sha256|sha384|sha512)\s*\.\s*create\b
+  pattern: \bforge\s*\.\s*md\s*\.\s*(?P<alg>md5|sha1|sha256|sha384|sha512)\s*\.\s*create\b
   value_group: alg
   value_map:
+    md5:
+      algorithm: MD5
     sha1:
       algorithm: SHA-1
     sha256:
