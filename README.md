@@ -20,7 +20,7 @@ Demo script with real numbers: `docs/DEMO.md`.
 | Markdown report with limitations | done |
 | Dependency graph / blast radius (`08`) | **not started** |
 | PQC Lab (liboqs ML-KEM / ML-DSA) | **not started** |
-| AI Copilot (template mode) | **not started** |
+| AI Copilot (template mode) | **not started** (`/api/health` reports a `copilot_mode` field, but no Copilot exists yet) |
 | PDF report, diff scanning, Go/Rust/C# | not started (stretch) |
 
 ## Run locally
@@ -32,6 +32,7 @@ Then open **Repository Scanner -> Load Acme Payments demo**. (Docker: `docker co
 
 ## Tests
     cd scanner && pytest        # deterministic scanner (rules, config, certificates, determinism, DoS resistance)
+    cd scanner && python -m eval.evaluate   # precision/recall/F1 on the hand-labelled set (see scanner/eval/README.md)
     cd backend && pytest        # ingestion, risk engine, migration rules, analysis API, report
     cd frontend && npm run build && npm test   # strict TS build + UI end-to-end tests against a real backend (jsdom)
 
@@ -85,3 +86,7 @@ Errors use `{"error": {"code": "...", "message": "..."}}` with codes such as `un
 
 ## Decisions log
 See `DECISIONS.md` (spec ambiguities and how they were resolved).
+
+## Audit
+`docs/AUDIT.md`: November 2026 repository audit (verified features, confirmed issues, open security items such as
+missing authentication on the public demo, ranked improvements and roadmap).
