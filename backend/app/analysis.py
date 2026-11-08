@@ -25,6 +25,7 @@ from .access import can_access
 from .config import Settings
 from .db import FindingRow, ScanRow
 from .graph import Graph, build_graph, finding_record
+from .readiness import assess
 from .ingestion import IngestionError, load_manifest, purge_tree
 from .ingestion.pipeline import TREE_DIR, workspace_path
 from .migration import CRYPTO_AGILITY, HONESTY, plan_for
@@ -252,19 +253,29 @@ def summarize(db: Session, scan_id: str) -> dict:
         "top_findings": [_card(r) for r in top],
         "scan_warnings": scan_warnings(scan.analysis),
         "dependency_graph": graph_overview(db, scan_id) if scan.status == "analyzed" else {"available": False},
+        "readiness": readiness_overview(db, scan_id) if scan.status == "analyzed" else {"available": False},
         "qmp_label": LABEL, "limitations": LIMITATIONS,
     }
 
 
 # ------------------------------------------------------------------ dependency graph (cached per scan state)
-_GRAPH_CACHE: "OrderedDict[str, Graph]" = OrderedDict()
+_GRAPH_CACHE: "OrderedDict[str, GraphContext]" = OrderedDict()
 _GRAPH_CACHE_SIZE = 16
 _graph_lock = threading.Lock()
 
 
-def dependency_graph(db: Session, scan_id: str) -> Graph:
-    """Graph for an analyzed scan. Cached; the key covers everything the graph depends on (analysis run and
-    suppression state), so a suppression change produces a fresh graph instead of a stale one."""
+class GraphContext:
+    """Everything derived from one scan state: graph, finding records, exclusions. Read-only once built."""
+
+    def __init__(self, graph: Graph, records: list[dict], excluded: dict, analysis: dict, services: list[dict], repo: str):
+        self.graph, self.records, self.excluded = graph, records, excluded
+        self.analysis, self.services, self.repo = analysis, services, repo
+        self.derived: dict[str, object] = {}          # memoized per-context results (readiness), guarded by _graph_lock
+
+
+def graph_context(db: Session, scan_id: str) -> GraphContext:
+    """Cached graph inputs for an analyzed scan. The key covers everything they depend on (analysis run and
+    suppression state), so a suppression change produces a fresh context instead of a stale one."""
     scan = db.get(ScanRow, scan_id)
     if scan is None:
         raise IngestionError("scan_not_found", "Scan not found.", 404)
@@ -280,15 +291,54 @@ def dependency_graph(db: Session, scan_id: str) -> Graph:
     live = [r for r in rows if not r.suppressed and not r.comment_only]
     recs = [finding_record(r.data, r.risk, plan_for(r.data, r.risk)) for r in live]
     stored = scan.graph if isinstance(scan.graph, dict) else None
-    g = build_graph(recs, stored.get("imports") if stored else None, scan.manifest.get("services", []), scan.repo_name,
-                    imports_truncated=bool(stored and stored.get("imports_truncated")),
-                    excluded={"suppressed": sum(r.suppressed for r in rows),
-                              "comment_only": sum(r.comment_only and not r.suppressed for r in rows)})
+    excluded = {"suppressed": sum(r.suppressed for r in rows), "comment_only": sum(r.comment_only and not r.suppressed for r in rows)}
+    services = scan.manifest.get("services", [])
+    g = build_graph(recs, stored.get("imports") if stored else None, services, scan.repo_name,
+                    imports_truncated=bool(stored and stored.get("imports_truncated")), excluded=excluded)
+    ctx = GraphContext(g, recs, excluded, dict(scan.analysis or {}), services, scan.repo_name)
     with _graph_lock:
-        _GRAPH_CACHE[key] = g
+        _GRAPH_CACHE[key] = ctx
         while len(_GRAPH_CACHE) > _GRAPH_CACHE_SIZE:
             _GRAPH_CACHE.popitem(last=False)
-    return g
+    return ctx
+
+
+def dependency_graph(db: Session, scan_id: str) -> Graph:
+    return graph_context(db, scan_id).graph
+
+
+def readiness_assessment(db: Session, scan_id: str) -> dict:
+    ctx = graph_context(db, scan_id)
+    with _graph_lock:
+        cached = ctx.derived.get("readiness")
+    if cached is None:
+        cached = assess(ctx.records, ctx.graph, analysis=ctx.analysis, services=ctx.services, excluded=ctx.excluded)
+        with _graph_lock:
+            ctx.derived["readiness"] = cached
+    return cached  # type: ignore[return-value]
+
+
+def migration_simulation(db: Session, scan_id: str, node: str, target: str | None) -> dict:
+    from .graph import NodeNotFound, NotSelectable
+    from .simulator import InvalidTarget, simulate
+    ctx = graph_context(db, scan_id)
+    try:
+        return simulate(ctx.graph, ctx.records, node, target)
+    except NodeNotFound:
+        raise IngestionError("node_not_found", "No such node in this scan's dependency graph.", 404)
+    except NotSelectable:
+        raise IngestionError("node_not_selectable", "Select an algorithm, library, finding or file to simulate a migration.", 422)
+    except InvalidTarget:
+        raise IngestionError("invalid_target", "That migration target is not an option for the selected cryptography.", 422)
+
+
+def readiness_overview(db: Session, scan_id: str) -> dict:
+    try:
+        a = readiness_assessment(db, scan_id)
+    except IngestionError:
+        return {"available": False}
+    return {"available": True, "level": a["level"]["id"], "label": a["level"]["label"], "blockers": len(a["blockers"]),
+            "top_recommendation": a["recommendations"][0]["title"] if a["recommendations"] else None}
 
 
 def graph_overview(db: Session, scan_id: str) -> dict:

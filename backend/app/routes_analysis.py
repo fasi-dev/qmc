@@ -208,3 +208,28 @@ def graph_blast_radius(node: str = Query(..., min_length=3, max_length=620, patt
         raise IngestionError("node_not_found", "No such node in this scan's dependency graph.", 404)
     except NotSelectable:
         raise IngestionError("node_not_selectable", "Select an algorithm, library, finding or file to compute a blast radius.", 422)
+
+
+@router.get("/scans/{scan_id}/readiness")
+def pqc_readiness(sid: str = Depends(scan_access), s: Settings = Depends(get_settings)) -> dict:
+    """PQC Readiness Assessment: level (explicit rules, no percentage), categories, blockers, recommendations, coverage."""
+    db = open_session(s)
+    try:
+        return analysis.readiness_assessment(db, sid)
+    finally:
+        db.close()
+
+
+TARGET_PATTERN = r"^[A-Za-z0-9-]{3,40}$"
+
+
+@router.get("/scans/{scan_id}/simulate")
+def migration_simulator(node: str = Query(..., min_length=3, max_length=620, pattern=NODE_ID_PATTERN),
+                        target: str | None = Query(default=None, pattern=TARGET_PATTERN),
+                        sid: str = Depends(scan_access), s: Settings = Depends(get_settings)) -> dict:
+    """Migration Impact Simulator for one algorithm, library, finding or file (planning only; no code is changed)."""
+    db = open_session(s)
+    try:
+        return analysis.migration_simulation(db, sid, node, target)
+    finally:
+        db.close()

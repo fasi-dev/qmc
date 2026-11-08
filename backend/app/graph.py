@@ -259,6 +259,27 @@ def _reverse_closure(g: Graph, start: Iterable[str], confirmed_only: bool) -> tu
     return seen, capped
 
 
+def indirect_impact(g: Graph, direct_files: Iterable[str]) -> tuple[list[dict], bool]:
+    """Files that depend on the given direct file nodes through (reverse) imports, each with its shortest evidence
+    path; confirmed only if reachable through confirmed edges alone. Returns (indirect, depth_capped)."""
+    direct = set(direct_files)
+    confirmed, _ = _reverse_closure(g, direct, confirmed_only=True)
+    reach, capped = _reverse_closure(g, direct, confirmed_only=False)
+    indirect = []
+    for fn in sorted(reach):
+        if fn in direct:
+            continue
+        conf = "confirmed" if fn in confirmed else "inferred"
+        depth, path = confirmed[fn] if fn in confirmed else reach[fn]
+        indirect.append({"node": fn, "file": g.nodes[fn]["label"], "service": g.nodes[fn]["service"], "depth": depth,
+                         "confidence": conf,
+                         "path": [{"edge": eid, "from": g.edges[eid]["source"], "to": g.edges[eid]["target"],
+                                   "confidence": g.edges[eid]["confidence"], "basis": g.edges[eid]["basis"],
+                                   "evidence": g.edges[eid]["evidence"][:2]} for eid in path]})
+    indirect.sort(key=lambda x: (x["depth"], x["confidence"] != "confirmed", x["file"]))
+    return indirect, capped
+
+
 def blast_radius(g: Graph, node_id: str) -> dict:
     if node_id not in g.nodes:
         raise NodeNotFound(node_id)
@@ -281,20 +302,7 @@ def blast_radius(g: Graph, node_id: str) -> dict:
     if node["type"] == "file":
         direct.setdefault(node_id, [])
 
-    confirmed, _ = _reverse_closure(g, direct, confirmed_only=True)
-    reach, capped = _reverse_closure(g, direct, confirmed_only=False)
-    indirect = []
-    for fn in sorted(reach):
-        if fn in direct:
-            continue
-        conf = "confirmed" if fn in confirmed else "inferred"
-        depth, path = confirmed[fn] if fn in confirmed else reach[fn]
-        indirect.append({"node": fn, "file": g.nodes[fn]["label"], "service": g.nodes[fn]["service"], "depth": depth,
-                         "confidence": conf,
-                         "path": [{"edge": eid, "from": g.edges[eid]["source"], "to": g.edges[eid]["target"],
-                                   "confidence": g.edges[eid]["confidence"], "basis": g.edges[eid]["basis"],
-                                   "evidence": g.edges[eid]["evidence"][:2]} for eid in path]})
-    indirect.sort(key=lambda x: (x["depth"], x["confidence"] != "confirmed", x["file"]))
+    indirect, capped = indirect_impact(g, direct)
 
     findings = [g.nodes[x] for x in seed]
     bands = {b: 0 for b in BAND_ORDER}
@@ -362,4 +370,10 @@ def finding_record(data: dict, risk: dict | None, plan: dict | None) -> dict:
             "already_pqc": data["already_pqc"], "band": (risk or {}).get("band"), "qmp": (risk or {}).get("qmp"),
             "hndl": bool(((risk or {}).get("hndl") or {}).get("flag")),
             "migration_rule": (plan or {}).get("rule_id"), "migration_direction": (plan or {}).get("direction"),
-            "complexity": (plan or {}).get("complexity")}
+            "complexity": (plan or {}).get("complexity"),
+            # used by the readiness assessment and the migration simulator (not rendered as graph attributes)
+            "role": (risk or {}).get("role"), "context": data.get("context"),
+            "test_path": bool((data.get("metadata") or {}).get("test_path")),
+            "key_size": (data.get("metadata") or {}).get("key_size"),
+            "hndl_severity": ((risk or {}).get("hndl") or {}).get("severity"),
+            "line_end": data.get("line_end", data["line_start"])}

@@ -78,7 +78,39 @@ def build_report(db: Session, scan_id: str) -> str:
           f"- Redacted secret values (not stored): {scan.manifest.get('stats', {}).get('redaction_count')}", "", "| Rule | Version | Hits |", "|---|---|---|"]
     L += [f"| {rid} | {an.get('rule_versions', {}).get(rid)} | {n} |" for rid, n in an.get("rule_hits", {}).items()]
     L += _blast_radius_section(db, scan_id)
+    L += _readiness_section(db, scan_id)
     return "\n".join(L) + "\n"
+
+
+def _readiness_section(db: Session, scan_id: str) -> list[str]:
+    """Section 9: PQC readiness (level from explicit rules; every blocker and recommendation cites file:line)."""
+    a = analysis.readiness_assessment(db, scan_id)
+    L = ["", "## 9. PQC readiness assessment", "", f"**{a['level']['label']}.** {a['level']['rule']}", "",
+         f"*{a['statement']}*", ""]
+    if a["blockers"]:
+        L += ["### Critical blockers", ""]
+        for b in a["blockers"]:
+            locs = ", ".join(f"`{e['file']}:{e['line']}`" for e in b["evidence"][:8]) + (" ..." if len(b["evidence"]) > 8 else "")
+            L.append(f"- **{_esc(b['title'])}** ({', '.join(b['services'])}): {_esc(b['why'])} Evidence: {locs}")
+        L.append("")
+    L += ["### Categories", "", "| Category | Status | Usages | Files | Components |", "|---|---|---|---|---|"]
+    for c in a["categories"]:
+        L.append(f"| {_esc(c['title'])} | {c['status']} | {c['count']} | {c['files']} | {', '.join(c['services']) or '-'} |")
+    L += ["", "### Prioritized recommendations", ""]
+    for r in a["recommendations"]:
+        locs = ", ".join(f"`{e['file']}:{e['line']}`" for e in r["evidence"][:5])
+        more = f" (+{r['evidence_total'] - 5} more)" if r["evidence_total"] > 5 else ""
+        refs = ", ".join(a["references"][x]["title"].split(":")[0] for x in r["references"][:4])
+        L.append(f"{r['priority']}. **{_esc(r['title'])}**: {_esc(r['action'])}" + (f" Evidence: {locs}{more}." if locs else "")
+                 + (f" References: {refs}." if refs else ""))
+    L += ["", "### Libraries", "", "| Library | Findings | PQC support known to QMC |", "|---|---|---|"]
+    for lib in a["libraries"]:
+        L.append(f"| {_esc(lib['library'])} | {lib['findings']} | {_esc(lib['pqc_support'] or 'not verified')} |")
+    L += ["", "Library versions are not determined by QMC: verify the versions you deploy.", "", "### Not analyzed", ""]
+    L += [f"- {x}" for x in a["not_analyzed"]] + [""] + [f"- {x}" for x in a["limitations"]]
+    used = sorted({x for c in a["categories"] for x in c["references"]} | {x for r in a["recommendations"] for x in r["references"]})
+    L += ["", "### References", ""] + [f"- [{a['references'][x]['title']}]({a['references'][x]['url']})" for x in used] + [""]
+    return L
 
 
 def _blast_radius_section(db: Session, scan_id: str) -> list[str]:
