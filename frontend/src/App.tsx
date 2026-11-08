@@ -2,14 +2,22 @@ import { useCallback, useEffect, useState } from "react";
 import { API, api, forgetToken, type Summary } from "./api";
 import Dashboard from "./Dashboard";
 import DependencyGraph from "./DependencyGraph";
+import Readiness from "./Readiness";
+import Simulator from "./Simulator";
 import FindingDetail from "./FindingDetail";
 import Inventory from "./Inventory";
 import Planner from "./Planner";
 import ScannerPanel from "./ScannerPanel";
 
 const NAV = [
-  { id: "dashboard", label: "Dashboard" }, { id: "scanner", label: "Repository Scanner" }, { id: "inventory", label: "Crypto Inventory" }, { id: "planner", label: "Migration Planner" },
-  { id: "graph", label: "Dependency Graph" },
+  { id: "dashboard", label: "Dashboard" }, { id: "scanner", label: "Repository Scanner" }, { id: "inventory", label: "Crypto Inventory" },
+  { id: "graph", label: "Dependency Graph" }, { id: "readiness", label: "PQC Readiness" }, { id: "simulate", label: "Migration Simulator" },
+  { id: "planner", label: "Migration Planner" },
+] as const;
+/** The analysis workflow, shown on every page once a scan exists. */
+const FLOW = [
+  { id: "scanner", label: "Scan" }, { id: "inventory", label: "Findings" }, { id: "graph", label: "Dependency graph" },
+  { id: "readiness", label: "PQC readiness" }, { id: "simulate", label: "Migration simulator" }, { id: "report", label: "Report" },
 ] as const;
 const LATER = ["PQC Lab", "AI Copilot"];
 
@@ -47,6 +55,11 @@ export default function App() {
     </div>);
   else if (page === "inventory") body = <Inventory scanId={scanId} />;
   else if (page === "planner") body = <Planner scanId={scanId} />;
+  else if (page === "readiness") body = <Readiness key={scanId} scanId={scanId} />;
+  else if (page === "simulate") {
+    const dec = (x?: string) => { try { return x ? decodeURIComponent(x) : undefined; } catch { return undefined; } };
+    body = <Simulator key={`${scanId}:${route[1] ?? ""}`} scanId={scanId} initialNode={dec(route[1])} initialTarget={dec(route[2])} />;
+  }
   else if (page === "graph") {
     let node: string | undefined;
     try { node = route[1] ? decodeURIComponent(route[1]) : undefined; } catch { node = undefined; }
@@ -69,11 +82,29 @@ export default function App() {
       </aside>
       <main className="main">
         <h2 className="page">{title}</h2>
+        {scanId && <Workflow page={page} scanId={scanId} />}
         {error && <p className="error" role="alert">{error}</p>}
         {health === "down" && <p className="error" role="alert">Cannot reach the backend at {API}. Start it with <code>uvicorn app.main:app --port 8000</code> in <code>backend/</code>.</p>}
         {body}
         <footer className="honesty">Static-analysis estimates. Not a certification. Quantum-vulnerable means vulnerable to a future quantum computer, not broken today.</footer>
       </main>
     </div>
+  );
+}
+
+function Workflow({ page, scanId }: { page: string; scanId: string }) {
+  const [err, setErr] = useState<string | null>(null);
+  const at = page === "finding" ? "inventory" : page;
+  return (
+    <nav className="workflow" aria-label="Analysis workflow">
+      <ol>{FLOW.map((s, i) => (
+        <li key={s.id} className={at === s.id ? "on" : ""}>
+          {s.id === "report"
+            ? <button className="linklike" onClick={() => { setErr(null); api.downloadReport(scanId).catch((e: Error) => setErr(e.message)); }}>
+                <span className="n">{i + 1}</span>{s.label}</button>
+            : <a href={`#/${s.id}`} aria-current={at === s.id ? "step" : undefined}><span className="n">{i + 1}</span>{s.label}</a>}
+        </li>))}</ol>
+      {err && <p className="error" role="alert">{err}</p>}
+    </nav>
   );
 }

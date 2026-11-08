@@ -387,6 +387,8 @@ function NodeDetails({ node, br, loading, error, onSelect, data }: {
       {node.type === "finding" && (
         <p><Band band={node.band ?? null} qmp={node.qmp} /> {node.hndl && <Badge tone="hndl">HNDL</Badge>}{" "}
           <a href={`#/finding/${node.fid}`}>Open finding detail →</a></p>)}
+      {SELECTABLE.includes(node.type) && (
+        <p><a className="btn small" href={`#/simulate/${encodeURIComponent(node.id)}`}>Simulate migration of this {label.toLowerCase()}</a></p>)}
       {node.type === "algorithm" && node.quantum_vulnerable && <p><Badge tone="warn">quantum-vulnerable</Badge></p>}
       <Relationships node={node} data={data} onSelect={onSelect} />
       {loading && <p className="dim" role="status">Computing blast radius…</p>}

@@ -48,6 +48,7 @@ export type Summary = {
   by_band: Record<string, number>; by_primitive: Record<string, number>; by_algorithm: Record<string, number>;
   services: ServiceRow[]; top_findings: Card[]; qmp_label: string; limitations: string;
   scan_warnings?: string[];
+  readiness?: { available: boolean; level?: string; label?: string; blockers?: number; top_recommendation?: string | null };
   dependency_graph?: { available: boolean; imports_available?: boolean; crypto_files?: number; dependent_files?: number;
                        import_edges?: number; inferred_edges?: number };
 };
@@ -120,6 +121,57 @@ export type BlastRadius = {
   meaning: Record<"direct" | "indirect" | "confirmed" | "inferred", string>;
 };
 
+// ---- PQC readiness (GET /api/scans/{id}/readiness) ---------------------------------------------------------
+export type ReadinessEvidence = { fid: string; file: string; line: number; text: string; algorithm: string; band: string | null; service: string; rule_id: string };
+export type ReadinessStatus = "blocker" | "action" | "review" | "positive" | "partial" | "not_detected" | "info";
+export type ReadinessCategory = {
+  id: string; title: string; status: ReadinessStatus; summary: string; count: number; files: number; services: string[];
+  algorithms: Record<string, number>; evidence: ReadinessEvidence[]; references: string[]; note?: string;
+  hubs?: { file: string; imported_by: string[] }[]; hndl?: number;
+};
+export type Readiness = {
+  version: number; level: { id: string; label: string; rule: string }; level_rules: { id: string; label: string; rule: string }[];
+  counts: Record<string, number>; categories: ReadinessCategory[];
+  blockers: { id: string; title: string; why: string; evidence: ReadinessEvidence[]; services: string[]; references: string[] }[];
+  recommendations: { priority: number; title: string; action: string; references: string[]; evidence: ReadinessEvidence[];
+                     evidence_total: number; services: string[]; simulate: string | null; libraries?: string[];
+                     hubs?: { file: string; imported_by: string[] }[] }[];
+  libraries: { library: string; findings: number; vulnerable_findings: number; files: number; pqc_support: string | null;
+               references: string[]; status: "known" | "not_verified"; note: string }[];
+  analyzed: { files_scanned: Record<string, number>; engine_version: string | null; scan_status: string | null; skipped_files: number;
+              skipped_by_reason: Record<string, number>; import_relationships: boolean; services_with_metadata: string[];
+              excluded: Record<string, number> };
+  not_analyzed: string[]; limitations: string[]; references: Record<string, { title: string; url: string }>; statement: string;
+};
+
+// ---- migration simulator (GET /api/scans/{id}/simulate?node=&target=) -------------------------------------
+export type SimTarget = { id: string; name: string; family: string; standard: string; refs: string[]; sizes: Record<string, number>; note: string };
+export type SimTrack = {
+  id: string; title: string;
+  findings: { fid: string; file: string; line: number; algorithm: string; operation: string; band: string | null; qmp: number | null;
+              hndl: boolean; service: string; evidence: string; confidence: string; test_path: boolean }[];
+  current: { algorithms: Record<string, number>; operations: Record<string, number>; apis: string[]; libraries: string[];
+             key_sizes: number[]; sizes: Record<string, Record<string, string>> };
+  target: SimTarget | null; target_options: { id: string; name: string; standard: string }[];
+  affected: { direct_files: string[]; components: string[]; indirect_files: BlastRadius["indirect"]; indirect_confirmed: number;
+              indirect_inferred: number; hndl: number };
+  rules: { rule_id: string; name: string; direction: string | null; steps: string[]; findings: number }[];
+  integration_changes: { operation: string; change: string; why: string;
+                         call_sites: { fid: string; file: string; line: number; text: string; api: string | null }[] }[];
+  compatibility: string[]; libraries: { library: string; pqc_support: string | null; references: string[]; status: string }[];
+  references: string[];
+  architecture: { current: { nodes: GraphNode[]; edges: GraphEdge[] }; proposed: { nodes: (GraphNode & { proposed?: boolean })[]; edges: GraphEdge[] }; note: string };
+  limitations: string[];
+};
+export type Simulation = {
+  version: number; selection: GraphNode; target_requested: string | null;
+  summary: { findings_in_scope: number; tracks: number; direct_files: number; indirect_files: number; indirect_inferred: number;
+             components: number; no_migration_needed: number };
+  tracks: SimTrack[]; no_migration_needed: { fid: string; file: string; line: number; algorithm: string; reason: string }[];
+  blast_radius: { summary: BlastRadius["summary"]; components: BlastRadius["components"]; limitations: string[] };
+  crypto_agility: string[]; references: Record<string, { title: string; url: string }>; statement: string;
+};
+
 export type Facets = { algorithm: string[]; primitive: string[]; service: string[]; band: string[]; confidence_level: string[] };
 
 async function j<T>(path: string, init?: RequestInit): Promise<T> {
@@ -172,6 +224,9 @@ export const api = {
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason, author: "demo-user" }) }),
   unsuppress: (id: string, fid: string) => j<Detail>(`/api/scans/${id}/findings/${fid}/suppress`, { method: "DELETE" }),
   graph: (id: string) => j<GraphData>(`/api/scans/${id}/graph`),
+  readiness: (id: string) => j<Readiness>(`/api/scans/${id}/readiness`),
+  simulate: (id: string, node: string, target?: string | null) =>
+    j<Simulation>(`/api/scans/${id}/simulate?node=${encodeURIComponent(node)}${target ? `&target=${encodeURIComponent(target)}` : ""}`),
   blastRadius: (id: string, node: string) =>
     j<BlastRadius>(`/api/scans/${id}/graph/blast-radius?node=${encodeURIComponent(node)}`),
 };

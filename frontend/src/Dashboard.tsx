@@ -22,6 +22,19 @@ export default function Dashboard({ s }: { s: Summary }) {
         <a className="btn" href="#/inventory">Crypto inventory</a>
       </div>
       {dlError && <p className="error" role="alert">{dlError}</p>}
+      {s.readiness?.available && (
+        <section className={`panel level level-${({ not_ready_blockers: "critical", not_ready: "high", in_transition: "review" } as Record<string, string>)[s.readiness.level ?? ""] ?? "info"}`}
+                 aria-labelledby="rd-h">
+          <p className="eyebrow">PQC readiness</p>
+          <h3 id="rd-h">{s.readiness.label}</h3>
+          <p>{s.readiness.blockers ? `${s.readiness.blockers} critical blocker(s). ` : ""}
+            {s.readiness.top_recommendation && <>First recommendation: <b>{s.readiness.top_recommendation}</b>.</>}</p>
+          <div className="row">
+            <a className="btn primary" href="#/readiness">Open readiness assessment</a>
+            <a className="btn" href="#/simulate">Simulate a migration</a>
+            <a className="btn" href="#/graph">Dependency graph</a>
+          </div>
+        </section>)}
       {warnings.length > 0 && (
         <div className="callout warn" role="alert">
           <b>Scan may be incomplete.</b>
