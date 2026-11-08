@@ -49,10 +49,19 @@ Then open **Repository Scanner -> Load Acme Payments demo**. Docker: `docker com
 Deployment, environment variables and the Render checklist: `docs/DEPLOYMENT.md`.
 
 ## Tests
-    cd scanner && pytest        # deterministic scanner (rules, config, certificates, determinism, DoS resistance)
-    cd scanner && python -m eval.evaluate   # precision/recall/F1 on the hand-labelled set (see scanner/eval/README.md)
-    cd backend && pytest        # ingestion, risk engine, migration rules, analysis API, report
-    cd frontend && npm run build && npm test   # strict TS build + UI end-to-end tests against a real backend (jsdom)
+Run from the repository root with Python 3.12 and Node.js 22 (the versions CI uses; jsdom 30 needs Node >= 22.22).
+
+    python -m venv .venv && source .venv/bin/activate
+    pip install -r backend/requirements-dev.txt -e scanner
+    (cd scanner && pytest -q && python -m eval.evaluate)   # scanner rules, imports, DoS resistance; precision/recall/F1
+    (cd backend && pytest -q)                              # ingestion, risk, migration, graph, readiness, simulator, API, access control
+    (cd frontend && npm ci && npm run build && npm test)   # strict TS build + UI tests against a real backend (started by vitest.global.ts)
+    docker build -f backend/Dockerfile -t qmc-backend . && docker build -t qmc-frontend frontend
+
+The UI tests start `uvicorn` from `backend/` with `python3` (or `.venv/bin/python`, or `$QMC_PYTHON`), so the backend
+requirements must be installed first. The graph / readiness / simulator logic is pure Python and can be tested without
+FastAPI: `cd backend && PYTHONPATH=../scanner pytest --noconftest tests/test_graph.py tests/test_readiness.py tests/test_simulator.py`.
+CI (`.github/workflows/ci.yml`) runs all of the above on every push.
 
 ## Access model
 No accounts. Creating a scan (upload or demo) returns an `access_token` **once**; every `/api/scans/{id}/...` call
@@ -74,6 +83,9 @@ Errors: `{"error": {"code", "message"}}`.
 * Code: Python (ast), Java and JavaScript/TypeScript (comment/string-aware lexer). Config: nginx, sshd/ssh, YAML, JSON
   (incl. JSONC), Dockerfile, CI files. Certificates: PEM X.509. Not covered: Go, C/C++, C#, Rust, Kotlin, PHP, Ruby,
   binaries, container images, dependency manifests/versions.
+* Large repositories: graph, blast-radius and simulator responses are gzip-compressed; the UI renders the first 150-200
+  entries of long file lists ("Show all" reveals the rest; counts are always complete) and the simulator's architecture
+  diagram shows at most 40 files (stated on the page). Import records are capped at 100,000 per scan (reported).
 * Static analysis cannot see algorithms chosen at runtime, dynamically loaded code, reflection, external services or
   library defaults (e.g. whether hybrid TLS is negotiated). Each view lists its own limitations.
 

@@ -42,7 +42,9 @@ Findings that need no migration (already PQC, or not vulnerable and not a hygien
    X.509) and the library-support table from the readiness module.
 7. **Architecture, current vs proposed**: the affected files with the algorithm/library they use today, and the
    same files pointing at the proposed target (dashed, marked "proposed change, not implemented"). Import edges are
-   identical in both views.
+   identical in both views. The diagram shows at most 40 files (directly affected first, then the nearest
+   dependents); when it is cut, `architecture.truncated` is true, `total_files` / `shown_files` give the numbers and
+   the note says so. The affected-file lists in step 4 are never truncated.
 8. **Unresolved dependencies and limitations**: blast-radius limitations, unverified libraries, unknown versions,
    undetermined roles, depth caps.
 

@@ -107,4 +107,8 @@ impact" limitation.
 * **One JSON column instead of `nodes`/`edges` tables.** The graph is derived data, rebuilt (and cached) from
   findings + stored import records, so suppressions are always reflected.
 * **No server-side 2-hop pagination / 2000-node cap.** The graph contains only crypto-relevant files; the UI offers
-  type filters, search and blast-radius focus for large scans instead of silently truncating.
+  type filters, search and blast-radius focus for large scans instead of silently truncating. Measured on a synthetic
+  10,000-file repository (1,000 crypto files, 28k imports): 13k nodes / 47k edges, graph build + scan 2.8 s,
+  blast radius 80-130 ms, simulation 0.3 s; the 20 MB graph JSON is gzip-compressed on the wire (~20x). Above 300
+  nodes the canvas renders only nodes in view, and the blast-radius panel lists the first 150 entries per list
+  until "Show all" (headings always give the full counts).

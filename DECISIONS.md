@@ -199,3 +199,10 @@ Spec issues found during the readiness check, and the default resolution used.
     parameter values. Each track's indirect impact is computed from that track's own direct files.
 58. **Two quadratic regexes removed** (JSONC comments, JS import clause), both introduced on this branch and caught in
     review; regression tests with 1 MB adversarial inputs.
+59. **Release-readiness pass: bounded payloads, not truncated data.** Responses are gzip-compressed (built-in
+    middleware). The simulator's architecture diagram is capped at 40 files (it is rendered unculled) and says so;
+    simulation of a 10k-file repo dropped from 6.7 s / 63 MB to 0.3 s / 10 MB (a list-membership test was quadratic).
+    UI lists render the first 150-200 entries behind "Show all"; data and counts stay complete.
+60. **Test backend for UI tests allows 8 concurrent analyses.** UI test files run in parallel and each loads the demo;
+    with the production default (2, rejecting with 503) the third load could fail at random. The gate itself keeps
+    its own backend tests.

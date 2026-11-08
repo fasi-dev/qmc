@@ -64,3 +64,15 @@ Compose waits for it before starting the frontend.
   unchanged); (4) deploy the frontend; (5) smoke test: health, Load Acme demo, Dependency Graph -> select ECDSA,
   PQC Readiness, Migration Simulator, Download report. Roll back by redeploying the previous commit; the added
   column is ignored by older code.
+* **Response compression:** the backend now gzips responses of 1 KB and more (`GZipMiddleware`, part of
+  FastAPI/Starlette, no new dependency). Browsers decompress transparently; nothing to configure on Render.
+* **Release check before staging** (run where dependencies can be installed; see README "Tests"):
+
+      pip install -r backend/requirements-dev.txt -e scanner
+      (cd scanner && pytest -q && python -m eval.evaluate)
+      (cd backend && pytest -q)
+      (cd frontend && npm ci && npm run build && npm test)        # Node.js 22
+      docker build -f backend/Dockerfile -t qmc-backend . && docker build -t qmc-frontend frontend
+
+  Then the smoke test above against staging. The frontend image builds on `node:20-slim`: the build tools support
+  Node 20, and the test-only packages (jsdom, undici) that need Node 22 only print an engine warning during `npm ci`.
