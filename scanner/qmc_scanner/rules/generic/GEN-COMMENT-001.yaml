@@ -1,5 +1,5 @@
 rule_id: GEN-COMMENT-001
-rule_version: 1.0.0
+rule_version: 1.0.1
 language: generic
 description: Algorithm named in a comment or documentation file (never executable evidence; capped at Low)
 library: null
@@ -30,7 +30,7 @@ match:
     primitive: public-key
     flags:
     - IGNORECASE
-  - pattern: \bDSA\b
+  - pattern: (?<![-\w])DSA\b
     algorithm: DSA
     primitive: public-key
   - pattern: \bDiffie[- ]?Hellman\b|\bDH\b
