@@ -78,18 +78,41 @@ def python_imports(text: str, rel: str) -> list[RawImport]:
 
 # ------------------------------------------------------------------ JS / TS (on lexed code: comments are blanked)
 _JS_PATTERNS = (
-    ("import", re.compile(r"\bimport\s+(?:type\s+)?(?:[\w$*{}\s,]+?\s+from\s+)?([\"'])([^\"'\n]{1,300})\1")),
+    # The import clause is length-bounded (600 chars, roughly 50 named imports): an unbounded lazy class that also
+    # matches newlines made a file full of `import a` statements quadratic (46 s for 180 KB). Longer clauses are not
+    # matched (reported via the unresolved/limitations path, never guessed).
+    ("import", re.compile(r"\bimport\s+(?:type\s+)?(?:[\w$*{}\s,]{1,600}?\s+from\s+)?([\"'])([^\"'\n]{1,300})\1")),
     ("export", re.compile(r"\bexport\s+(?:type\s+)?(?:\*(?:\s+as\s+[\w$]+)?|\{[^}]{0,2000}\})\s*from\s*([\"'])([^\"'\n]{1,300})\1")),
     ("require", re.compile(r"\brequire\s*\(\s*([\"'])([^\"'\n]{1,300})\1\s*\)")),
     ("dynamic", re.compile(r"\bimport\s*\(\s*([\"'])([^\"'\n]{1,300})\1\s*\)")),
 )
 
 
+_IMPORT_KW = re.compile(r"\bimport\b")
+
+
+def _import_matches(code: str, pat: re.Pattern):
+    """Run the import pattern only where it can match: a quote within the bounded window after `import` (either the
+    module specifier or the one after `from`). str.find is C-speed, so `import` floods without quotes cost ~nothing."""
+    for k in _IMPORT_KW.finditer(code):
+        end = min(len(code), k.end() + 640)
+        if code.find('"', k.end(), end) == -1 and code.find("'", k.end(), end) == -1:
+            continue
+        m = pat.match(code, k.start())
+        if m:
+            yield m
+
+
 def js_imports(lx: Lexed, rel: str) -> list[RawImport]:
     lines = lx.code.split("\n")
     out: dict[tuple[int, str], RawImport] = {}
+    code = lx.code
     for kind, pat in _JS_PATTERNS:
-        for m in pat.finditer(lx.code):
+        if kind == "import":
+            matches = _import_matches(code, pat)
+        else:
+            matches = pat.finditer(code)
+        for m in matches:
             if lx.mask[m.start()] != 0:          # keyword inside a string / comment / regex literal
                 continue
             line = lx.line_of(m.start())

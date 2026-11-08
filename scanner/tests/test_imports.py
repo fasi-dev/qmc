@@ -218,3 +218,22 @@ def test_tsconfig_outside_the_importer_tree_is_not_applied(scan):
                 "a/src/x.ts": "", "b/main.ts": "import x from '@/x';\n"})
     (r,) = by_file(res, "b/main.ts")
     assert r["resolution"] == "external"
+
+
+@pytest.mark.parametrize("name,src", [
+    ("import flood", "import a\n" * 110_000),                    # was quadratic: 46 s for 180 KB before the fix
+    ("import-from flood without quotes", "import a from b\n" * 65_000),
+    ("quotes nearby, no from", "import a b c 'x\n" * 65_000),
+    ("type-import flood", "import type a\n" * 80_000),
+])
+def test_js_import_extraction_is_linear(scan, name, src):
+    import time
+    t = time.time()
+    res = scan({"a.ts": src})
+    assert time.time() - t < 10 and res.status == "complete", name
+
+
+def test_long_import_clauses_still_resolve_up_to_the_bound(scan):
+    names = ", ".join(f"n{i}" for i in range(60))                 # ~400 chars: within the 600-char bound
+    res = scan({"a.ts": f"import {{ {names} }} from './b';\n", "b.ts": ""})
+    assert [(r["spec"], r["resolution"]) for r in res.imports] == [("./b", "resolved")]

@@ -273,3 +273,15 @@ def test_template_pathological_inputs_finish_quickly(scan, name, src):
     t = time.time()
     res = scan({"a.js": src})
     assert time.time() - t < 15 and res.status == "complete" and res.files_skipped == [], name
+
+
+@pytest.mark.parametrize("name,src", [
+    ("unterminated block comment flood", "{" + "/* " * 300_000),
+    ("comma + whitespace flood", "[" + ("1," + " " * 5000) * 150),
+    ("tsconfig comment flood", '{"compilerOptions": {' + "/* " * 300_000),
+])
+def test_jsonc_fallback_is_linear(scan, name, src):
+    """Regression: the JSONC comment regex was quadratic on unterminated '/*' (8.75 s for 60 KB)."""
+    t = time.time()
+    res = scan({"tsconfig.json": src, "x.json": src})
+    assert time.time() - t < 10 and res.status == "complete", name

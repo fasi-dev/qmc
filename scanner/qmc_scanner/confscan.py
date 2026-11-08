@@ -86,7 +86,8 @@ def _compose(text: str):
         return None
 
 
-_JSONC_TOKEN = re.compile(r'"(?:\\.|[^"\\\n])*"|//[^\n]*|/\*[\s\S]*?\*/|,(?=\s*[}\]])')
+# An unterminated block comment runs to end of input (\Z): one pass, linear even for "/*/*/*..." floods.
+_JSONC_TOKEN = re.compile(r'"(?:\\.|[^"\\\n])*"|//[^\n]*|/\*[\s\S]*?(?:\*/|\Z)|,(?=[ \t\r\n]*[}\]])')
 
 
 def strip_jsonc(text: str) -> str:
