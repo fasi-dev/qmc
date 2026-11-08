@@ -2,10 +2,23 @@
 
 *Discover your cryptography. Understand your quantum exposure. Plan your migration.*
 
-Prototype decision-support tool for post-quantum cryptography migration planning. Upload a repository; it is safely ingested,
-statically scanned (deterministic, no AI), scored with the transparent **Quantum Migration Priority** model, and turned into an
-inventory, risk ranking, migration plan and report. Specification: `docs/knowledge-pack/` (start with `DOCUMENT_MAP.md`).
-Demo script with real numbers: `docs/DEMO.md`.
+Evidence-driven post-quantum cryptography (PQC) readiness and migration analysis. Upload a repository; it is safely
+ingested, statically scanned (deterministic, no AI, nothing executed), scored with the transparent **Quantum Migration
+Priority** model, and turned into:
+
+**Scan → Findings → Dependency graph → PQC readiness → Migration simulator → Report**
+
+* **Inventory** of cryptographic usage with file:line evidence, confidence and QMP priority.
+* **Dependency graph and blast radius**: which files use an algorithm/library directly and which depend on them through
+  imports, confirmed vs inferred (`docs/DEPENDENCY_GRAPH.md`).
+* **PQC readiness assessment**: rule-based level (no percentage), blockers, categories, prioritized recommendations,
+  library PQC support with sources, and what was not analyzed (`docs/PQC_READINESS.md`).
+* **Migration impact simulator**: current vs proposed (e.g. ECDH → hybrid ML-KEM, ECDSA → ML-DSA), affected files,
+  integration changes with call sites, compatibility considerations, limitations (`docs/MIGRATION_SIMULATOR.md`).
+* **Markdown report** with all of the above.
+
+Architecture: `docs/ARCHITECTURE.md`. Specification: `docs/knowledge-pack/`. Demo script: `docs/DEMO.md`.
+QMC never certifies an application as quantum-safe.
 
 ## Status
 
@@ -20,7 +33,9 @@ Demo script with real numbers: `docs/DEMO.md`.
 | Dashboard, finding detail (evidence snippet, factor bars), scanner screen with Acme demo loader | done |
 | Migration rules (`07`) + planner screen + detail panel | done |
 | Markdown report with limitations | done |
-| Dependency graph + blast radius (imports-based, evidence + confirmed/inferred; `docs/DEPENDENCY_GRAPH.md`) | done |
+| Dependency graph + blast radius (Python/Java/JS/TS imports, Java same-package, tsconfig paths; evidence + confirmed/inferred) | done |
+| PQC readiness assessment (`docs/PQC_READINESS.md`) | done |
+| Migration impact simulator (`docs/MIGRATION_SIMULATOR.md`) | done (planning only) |
 | PQC Lab (liboqs ML-KEM / ML-DSA) | **not started** |
 | AI Copilot | **not started** |
 | PDF report, diff scanning, Go/Rust/C# | not started (stretch) |
@@ -52,7 +67,15 @@ Scans are deleted after `QMC_RETENTION_HOURS` (default 24); scan creation is rat
     GET  /scans/{id}/findings/{fid}  (evidence, snippet, risk factors, migration)   GET /scans/{id}/findings.csv
     POST|DELETE /scans/{id}/findings/{fid}/suppress   GET /scans/{id}/migration   GET /scans/{id}/report.md
     GET  /scans/{id}/graph, /scans/{id}/graph/blast-radius?node=algorithm:ECDH
+    GET  /scans/{id}/readiness          GET /scans/{id}/simulate?node=algorithm:ECDSA&target=ML-DSA-65
 Errors: `{"error": {"code", "message"}}`.
+
+## Supported inputs and limits
+* Code: Python (ast), Java and JavaScript/TypeScript (comment/string-aware lexer). Config: nginx, sshd/ssh, YAML, JSON
+  (incl. JSONC), Dockerfile, CI files. Certificates: PEM X.509. Not covered: Go, C/C++, C#, Rust, Kotlin, PHP, Ruby,
+  binaries, container images, dependency manifests/versions.
+* Static analysis cannot see algorithms chosen at runtime, dynamically loaded code, reflection, external services or
+  library defaults (e.g. whether hybrid TLS is negotiated). Each view lists its own limitations.
 
 ## Layout
 - `frontend/` React + TypeScript + Vite

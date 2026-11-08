@@ -1,6 +1,6 @@
 # Cryptographic dependency graph and blast radius
 
-*Implemented on `feature/dependency-graph` (engine 0.4.0). Spec: `docs/knowledge-pack/08_DEPENDENCY_GRAPH.md`;
+*Implemented on `feature/dependency-graph` (engine 0.4.0; resolution refined in the following commits). Spec: `docs/knowledge-pack/08_DEPENDENCY_GRAPH.md`;
 deviations are listed at the end.*
 
 ## What it answers
@@ -25,10 +25,16 @@ Imports are extracted by the scanner (`scanner/qmc_scanner/imports.py`): Python 
 existing comment/string-aware lexer (imports in comments and strings are ignored; code inside template-literal
 interpolations is code). Nothing is executed, imported or installed.
 
-Resolution rules: Python relative imports from the importing package; absolute imports by module-path suffix
-(unique = resolved, several = ambiguous; a bare top-level name only resolves in the importer's directory);
-JS/TS relative specifiers with extension, `index.*` and TS-ESM `.js -> .ts` resolution; Java imports by
-fully-qualified class path (static imports drop the member).
+Resolution rules:
+* Python: relative imports from the importing package; absolute imports by module-path suffix, decided per module
+  (unique = resolved, several = ambiguous; a bare top-level name only resolves in the importer's directory).
+  `from a.b import sub, attr` targets both `a/b/sub.py` and the module `a.b`.
+* JS/TS: relative specifiers with extension, `index.*` and TS-ESM `.js -> .ts` resolution; bare specifiers through
+  the nearest `tsconfig.json` / `jsconfig.json` `compilerOptions.paths` and `baseUrl` (TypeScript match priority;
+  `extends` is not followed). Import clauses longer than 600 characters are not matched.
+* Java: imports by fully-qualified class path (static imports drop the member; `a.b.*` is a wildcard = inferred);
+  **same-package type references** (no import needed in Java) from masked code, shadowed by an explicit single-type
+  import of the same simple name; at most 5,000 distinct type names per file (exceeding it is reported).
 
 Only files on a path to cryptographic usage are included (files with findings, files importing a crypto
 library, and their transitive importers). Unrelated files are left out, which keeps the graph focused.
@@ -52,6 +58,14 @@ Dynamic imports with computed names, runtime import machinery, reflection, depen
 aliases, Java same-package references (no import statement), calls across services or network APIs, and code not in
 the uploaded archive. Unresolved relative imports are counted and reported. Comment/doc mentions and findings marked
 as false positives are excluded (and counted).
+
+## UI
+
+Layered SVG layout (`frontend/src/graphLayout.ts`, deterministic, no graph library). Zoom/pan/fit, search with a
+match list, type filters, focus on the blast radius, shareable `#/graph/<node>` links. Above 300 nodes only what
+intersects the viewport is rendered. Keyboard: one node is in the Tab order (roving tabindex); arrow keys move within
+a column (Up/Down/Home/End) or to a connected node in the adjacent column (Left/Right); Enter selects. Node details
+list every relationship with its confidence and evidence, and link to the Migration Simulator.
 
 ## API
 

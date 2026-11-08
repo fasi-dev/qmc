@@ -188,3 +188,14 @@ Spec issues found during the readiness check, and the default resolution used.
     cached per (analysis run, suppression state). Scans analyzed earlier show direct usage only, and say so.
 54. **Acme fixture** gained three import-only files (`src/api/routes.py`, `src/api/app.py`, `src/payments/refunds.py`)
     so the demo has real indirect relationships; findings are unchanged, `files_scanned` golden updated (python 6 -> 9).
+55. **PQC readiness has no percentage.** An ordinal level from four explicit rules (docs/PQC_READINESS.md); the best
+    outcome is "no quantum-vulnerable usage detected", never "quantum-safe". Lab/demo/example/sample/poc paths count as
+    non-production for PQC adoption.
+56. **Library PQC support is a sourced table, not a guess.** Only entries verified against primary sources (pyca
+    changelog, JEP 496/497, Bouncy Castle 1.79, Node.js 24.7.0, OpenSSL 3.5, OpenSSH) are listed; others are "not
+    verified". Installed versions are never inferred.
+57. **Simulator targets are a fixed, standards-based list per track**; hybrid X25519MLKEM768 is the default for key
+    establishment during the transition, ML-DSA-65 for signatures; undetermined roles get no target. Sizes are published
+    parameter values. Each track's indirect impact is computed from that track's own direct files.
+58. **Two quadratic regexes removed** (JSONC comments, JS import clause), both introduced on this branch and caught in
+    review; regression tests with 1 MB adversarial inputs.
