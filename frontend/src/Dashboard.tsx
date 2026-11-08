@@ -18,6 +18,7 @@ export default function Dashboard({ s }: { s: Summary }) {
         <button className="btn primary" onClick={() => { setDlError(null); api.downloadReport(s.scan.id).catch((e: Error) => setDlError(e.message)); }}>
           Download report (Markdown)</button>
         <a className="btn" href="#/planner">Migration planner</a>
+        <a className="btn" href="#/graph">Dependency graph</a>
         <a className="btn" href="#/inventory">Crypto inventory</a>
       </div>
       {dlError && <p className="error" role="alert">{dlError}</p>}
@@ -90,6 +91,11 @@ export default function Dashboard({ s }: { s: Summary }) {
         {t.comment_or_doc_mentions} comment/doc mentions and {t.test_path} test-path finding(s) are hidden by default (not deleted) ·{" "}
         {t.suppressed} suppressed. <a href="#/inventory">Open the full inventory →</a>
       </p>
+      {s.dependency_graph?.available && (
+        <p className="fine">Dependency graph: {s.dependency_graph.crypto_files} file(s) use cryptography and{" "}
+          {s.dependency_graph.dependent_files} more import them.{" "}
+          {s.dependency_graph.imports_available ? "" : "Import relationships are unavailable for this scan (re-scan to compute them). "}
+          <a href="#/graph">Explore the blast radius →</a></p>)}
       <p className="fine">{s.qmp_label}</p>
     </div>
   );

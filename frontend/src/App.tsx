@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { API, api, forgetToken, type Summary } from "./api";
 import Dashboard from "./Dashboard";
+import DependencyGraph from "./DependencyGraph";
 import FindingDetail from "./FindingDetail";
 import Inventory from "./Inventory";
 import Planner from "./Planner";
@@ -8,8 +9,9 @@ import ScannerPanel from "./ScannerPanel";
 
 const NAV = [
   { id: "dashboard", label: "Dashboard" }, { id: "scanner", label: "Repository Scanner" }, { id: "inventory", label: "Crypto Inventory" }, { id: "planner", label: "Migration Planner" },
+  { id: "graph", label: "Dependency Graph" },
 ] as const;
-const LATER = ["Dependency Graph", "PQC Lab", "AI Copilot"];
+const LATER = ["PQC Lab", "AI Copilot"];
 
 function useRoute(): string[] {
   const [h, setH] = useState(location.hash);
@@ -45,6 +47,11 @@ export default function App() {
     </div>);
   else if (page === "inventory") body = <Inventory scanId={scanId} />;
   else if (page === "planner") body = <Planner scanId={scanId} />;
+  else if (page === "graph") {
+    let node: string | undefined;
+    try { node = route[1] ? decodeURIComponent(route[1]) : undefined; } catch { node = undefined; }
+    body = <DependencyGraph key={scanId} scanId={scanId} initialNode={node} />;
+  }
   else if (page === "finding" && route[1]) body = <FindingDetail scanId={scanId} fid={route[1]} />;
   else body = summary ? <Dashboard s={summary} /> : <p className="dim">Loading…</p>;
 
