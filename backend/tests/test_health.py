@@ -10,5 +10,5 @@ def test_health_ok():
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "ok"
-    assert body["engine_version"] == "0.1.0"
+    assert body["engine_version"] == "0.2.0"
     assert body["copilot_mode"] == "template"

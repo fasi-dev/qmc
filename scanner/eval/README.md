@@ -8,7 +8,7 @@ corpus. Labels are ground truth: what a reviewer would list, not what the scanne
 
 Matching is a multiset match on `(line_start, algorithm)` per case; comment/doc mentions are ignored.
 
-## Results (this branch, 0.1.0)
+## Results (engine 0.2.0)
 
 | Subset | TP | FP | FN | Precision | Recall | F1 |
 |---|---|---|---|---|---|---|
