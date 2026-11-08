@@ -16,6 +16,7 @@ from typing import Any
 from ._version import ENGINE_VERSION
 from .confscan import hash_comments, scan_directives, scan_pem, scan_structured
 from .context import infer_context
+from .imports import RawImport, java_imports, js_imports, python_imports, resolve_all
 from .lexers import lex
 from .matches import RawMatch, clean_evidence, scan_mentions
 from .pyscan import mentions_python, scan_python
@@ -81,12 +82,17 @@ class ScanResult:
     rule_versions: dict[str, str]
     engine_version: str = ENGINE_VERSION
     as_of: str = ""
+    # Dependency-graph inputs (see imports.py): resolved import records and the code files they were resolved against.
+    imports: list[dict[str, Any]] = field(default_factory=list)
+    imports_truncated: bool = False
+    code_files: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {"engine_version": self.engine_version, "scan_id": self.scan_id, "as_of": self.as_of, "status": self.status,
                 "files_scanned": self.files_scanned, "files_skipped": self.files_skipped,
                 "skipped_directories": self.skipped_directories, "rule_hits": self.rule_hits,
-                "rule_versions": self.rule_versions, "findings": self.findings}
+                "rule_versions": self.rule_versions, "findings": self.findings,
+                "imports": self.imports, "imports_truncated": self.imports_truncated, "code_files": self.code_files}
 
 
 def _resolve_siblings(matches: list[RawMatch]) -> None:
@@ -121,6 +127,8 @@ def scan_tree(root: Path | str, *, scan_id: str = "00000000-0000-4000-8000-00000
     skipped: list[dict[str, str]] = []
     skipped_dirs: list[str] = []
     collected: list[tuple[str, RawMatch]] = []
+    raw_imports: list[tuple[RawImport, str]] = []
+    code_files: dict[str, str] = {}
 
     for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
         rel_dir = Path(dirpath).relative_to(root).as_posix()
@@ -165,11 +173,15 @@ def scan_tree(root: Path | str, *, scan_id: str = "00000000-0000-4000-8000-00000
                     continue
                 if mention_rule:
                     matches += mentions_python(text, mention_rule)
+                code_files[rel] = "python"
+                raw_imports += [(i, "python") for i in python_imports(text, rel)]
             elif lang in ("java", "js"):
                 lx = lex(text, lang)
                 matches = scan_regex(lx, java_rules if lang == "java" else js_rules)
                 if mention_rule:
                     matches += scan_mentions(mention_rule, lx.comments)
+                code_files[rel] = lang
+                raw_imports += [(i, lang) for i in (java_imports(lx, rel) if lang == "java" else js_imports(lx, rel))]
             elif lang == "pem":
                 matches, why = scan_pem(text, cfg_rules, as_of)
                 if why:
@@ -198,10 +210,12 @@ def scan_tree(root: Path | str, *, scan_id: str = "00000000-0000-4000-8000-00000
     for f in findings:
         hits[f["rule_id"]] = hits.get(f["rule_id"], 0) + 1
     used = {r.rule_id: r.rule_version for r in ruleset.rules}
+    imports, truncated = resolve_all(raw_imports, code_files)
     return ScanResult(scan_id, status, findings, dict(sorted(scanned.items())),
                       sorted(skipped, key=lambda s: (s["file"], s["reason"])), sorted(skipped_dirs),
                       dict(sorted(hits.items())), dict(sorted(used.items())),
-                      as_of=as_of.date().isoformat())
+                      as_of=as_of.date().isoformat(), imports=imports, imports_truncated=truncated,
+                      code_files=dict(sorted(code_files.items())))
 
 
 def _finalize(collected: list[tuple[str, RawMatch]], scan_id: str, services: list[dict], repo: str) -> list[dict]:
