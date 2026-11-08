@@ -146,7 +146,7 @@ describe("demo flow: scan -> dashboard -> inventory -> finding detail", () => {
     await waitFor(() => expect(document.querySelectorAll("table.inv tbody tr.click").length).toBeGreaterThan(1));
     const row = document.querySelector("table.inv tbody tr.click") as HTMLElement;
     expect(row.getAttribute("tabindex")).toBe("0");
-    expect(row.getAttribute("role")).toBe("link");
+    expect(row.getAttribute("role")).toBeNull();          // keeps the implicit table "row" role
     fireEvent.keyDown(row, { key: "Enter" });
     await waitFor(() => expect(window.location.hash).toMatch(/^#\/finding\/CRYPTO-\d+$/));
   });

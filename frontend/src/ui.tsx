@@ -25,13 +25,13 @@ export function Kpi({ value, label, tone, hint }: { value: ReactNode; label: str
 }
 export const pretty = (s: string) => s.replace(/_/g, " ");
 
-/** Props that make a table row behave like a link for mouse AND keyboard users (Tab to focus, Enter/Space to open). */
-export function rowAction(action: () => void, label: string, role: "link" | "button" = "link") {
+/** Props that make a table row activatable by mouse AND keyboard (Tab to focus, Enter/Space to open).
+ *  The <tr> keeps its implicit "row" role: overriding it (e.g. role="link") removes the row from table semantics. */
+export function rowAction(action: () => void, label: string) {
   return {
     onClick: action,
     onKeyDown: (e: KeyboardEvent<HTMLElement>) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); action(); } },
     tabIndex: 0,
-    role,
     "aria-label": label,
   };
 }
