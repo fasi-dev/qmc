@@ -163,3 +163,5 @@ tr.click:focus-visible { outline: 2px solid var(--band-review); outline-offset: 
 .tchip { font-size: .68rem; color: #fff; border-radius: 3px; padding: 0 5px; margin-right: 4px; }
 .tchip.t-service { background: var(--t-service); } .tchip.t-file { background: var(--t-file); } .tchip.t-finding { background: var(--t-finding); }
 .tchip.t-algorithm { background: var(--t-algorithm); } .tchip.t-library { background: var(--t-library); }
+.relationships { margin: 8px 0; font-size: .85rem; } .relationships summary { cursor: pointer; color: var(--accent); }
+.relationships h5 { margin: 8px 0 2px; font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }

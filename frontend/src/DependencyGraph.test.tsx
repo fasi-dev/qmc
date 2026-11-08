@@ -25,7 +25,8 @@ describe("dependency graph", () => {
     expect(screen.getByRole("link", { name: "Dependency Graph" })).toBeTruthy();
     const ecdsa = node("algorithm:ECDSA")!;
     expect(ecdsa.getAttribute("role")).toBe("button");
-    expect(ecdsa.getAttribute("tabindex")).toBe("0");
+    // roving tabindex: exactly one node is in the Tab order
+    expect(document.querySelectorAll('[data-node][tabindex="0"]').length).toBe(1);
     expect(ecdsa.getAttribute("aria-label")).toMatch(/Algorithm ECDSA\. \d+ finding\(s\) · quantum-vulnerable/);
     expect(node("file:src/api/app.py")).toBeTruthy();                               // a dependent (import-only) file
     expect(node("file:README.md")).toBeNull();                                      // doc mentions are not graph evidence
@@ -66,6 +67,23 @@ describe("dependency graph", () => {
     expect(node("file:src/payments/refunds.py")!.getAttribute("class")).toMatch(/\bmatch\b/);
     fireEvent.click(match);
     await waitFor(() => expect(screen.getByRole("heading", { name: "src/payments/refunds.py" })).toBeTruthy());
+  });
+
+  it("arrow keys move focus between nodes; left/right follows connections", async () => {
+    window.location.hash = "#/graph";
+    render(<App />);
+    await waitFor(() => expect(node("algorithm:ECDSA")).toBeTruthy(), { timeout: 15000 });
+    const start = document.querySelector('[data-node][tabindex="0"]') as SVGGElement;
+    start.focus();
+    fireEvent.keyDown(start, { key: "ArrowDown" });
+    await waitFor(() => expect(document.querySelector('[data-node][tabindex="0"]')).not.toBe(start));
+    const second = document.querySelector('[data-node][tabindex="0"]') as SVGGElement;
+    expect(second.getAttribute("data-node")).toMatch(/^algorithm:/);                 // same column
+    fireEvent.keyDown(second, { key: "ArrowLeft" });                                 // into the file column, via an edge
+    await waitFor(() => expect(document.querySelector('[data-node][tabindex="0"]')!.getAttribute("data-node")).toMatch(/^file:/));
+    const file = document.querySelector('[data-node][tabindex="0"]') as SVGGElement;
+    fireEvent.keyDown(file, { key: "Enter" });
+    expect(await screen.findByText(/^Relationships \(\d+\)$/, {}, { timeout: 15000 })).toBeTruthy();
   });
 
   it("zoom and fit controls change the view transform", async () => {

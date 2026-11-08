@@ -10,6 +10,9 @@ const TYPE_LABEL: Record<NodeType, string> = {
 const SELECTABLE: NodeType[] = ["algorithm", "library", "finding", "file"];
 const MIN_K = 0.1, MAX_K = 2.5;
 const LARGE = 600;
+/** Above this many nodes only what intersects the viewport (plus a margin) is rendered. */
+const CULL_ABOVE = 300;
+const CULL_MARGIN = 200;
 
 type View = { x: number; y: number; k: number };
 
@@ -44,6 +47,8 @@ export default function DependencyGraph({ scanId, initialNode }: { scanId: strin
   const [brLoading, setBrLoading] = useState(false);
   const [focusOnly, setFocusOnly] = useState(false);
   const [view, setView] = useState<View>({ x: 0, y: 0, k: 1 });
+  const [size, setSize] = useState({ w: 1000, h: 620 });
+  const [focusId, setFocusId] = useState<string | null>(initialNode ?? null);
   const box = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
 
@@ -91,6 +96,50 @@ export default function DependencyGraph({ scanId, initialNode }: { scanId: strin
 
   const layout = useMemo(() => (data ? layoutGraph(data, { showFindings, types, query, focus }) : null), [data, showFindings, types, query, focus]);
   const placed = useMemo(() => new Map((layout?.nodes ?? []).map((n) => [n.id, n] as const)), [layout]);
+
+  // Track the canvas size (for fit, culling and keeping the focused node in view).
+  useEffect(() => {
+    const measure = () => { const el = box.current; if (el && el.clientWidth) setSize({ w: el.clientWidth, h: el.clientHeight }); };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [data]);
+
+  // Viewport culling for large graphs: render only nodes/edges that intersect the visible area.
+  const culled = useMemo(() => {
+    if (!layout) return { nodes: [] as PlacedNode[], edges: [] as NonNullable<typeof layout>["edges"] };
+    if (layout.nodes.length <= CULL_ABOVE) return { nodes: layout.nodes, edges: layout.edges };
+    const x0 = -view.x / view.k - CULL_MARGIN, y0 = -view.y / view.k - CULL_MARGIN;
+    const x1 = x0 + size.w / view.k + 2 * CULL_MARGIN, y1 = y0 + size.h / view.k + 2 * CULL_MARGIN;
+    const inView = (n: PlacedNode) => n.x + n.w >= x0 && n.x <= x1 && n.y + n.h >= y0 && n.y <= y1;
+    const nodes = layout.nodes.filter((n) => inView(n) || n.id === selected || n.id === focusId);
+    const keep = new Set(nodes.map((n) => n.id));
+    const edges = layout.edges.filter((e) => {
+      if (keep.has(e.source) || keep.has(e.target)) return true;
+      const s = placed.get(e.source), t = placed.get(e.target);   // long edge crossing the view
+      return !!s && !!t && Math.max(s.y, t.y) >= y0 && Math.min(s.y, t.y) <= y1 && Math.max(s.x, t.x) >= x0 && Math.min(s.x, t.x) <= x1;
+    });
+    return { nodes, edges };
+  }, [layout, view, size, selected, focusId, placed]);
+
+  // Roving tabindex: exactly one node is in the Tab order; arrow keys move between nodes.
+  const columns = useMemo(() => {
+    const cols = new Map<number, PlacedNode[]>();
+    for (const n of layout?.nodes ?? []) cols.set(n.col, [...(cols.get(n.col) ?? []), n]);
+    for (const c of cols.values()) c.sort((a, b) => a.y - b.y);
+    return cols;
+  }, [layout]);
+  const neighbours = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const e of layout?.edges ?? []) {
+      m.set(e.source, (m.get(e.source) ?? new Set()).add(e.target));
+      m.set(e.target, (m.get(e.target) ?? new Set()).add(e.source));
+    }
+    return m;
+  }, [layout]);
+  const tabStop = focusId && placed.has(focusId) ? focusId
+    : selected && placed.has(selected) ? selected
+    : (layout?.nodes.find((n) => n.type === "algorithm") ?? layout?.nodes[0])?.id ?? null;
 
   const viewport = () => ({ w: box.current?.clientWidth || 1000, h: box.current?.clientHeight || 620 });
   const fit = useCallback(() => {
@@ -142,12 +191,53 @@ export default function DependencyGraph({ scanId, initialNode }: { scanId: strin
     if (moves[e.key]) { e.preventDefault(); moves[e.key](); }
   };
 
+  const moveFocus = (id: string) => {
+    setFocusId(id);
+    const n = placed.get(id);
+    if (n) setView((v) => {                                     // keep the focused node on screen
+      const sx = n.x * v.k + v.x, sy = n.y * v.k + v.y;
+      if (sx >= 0 && sy >= 0 && sx + n.w * v.k <= size.w && sy + n.h * v.k <= size.h) return v;
+      return { ...v, x: size.w / 2 - (n.x + n.w / 2) * v.k, y: size.h / 2 - (n.y + n.h / 2) * v.k };
+    });
+    requestAnimationFrame(() => {
+      const el = [...(box.current?.querySelectorAll("[data-node]") ?? [])].find((x) => x.getAttribute("data-node") === id);
+      (el as SVGGElement | undefined)?.focus();
+    });
+  };
+  const step = (from: string, key: string): string | null => {
+    const n = placed.get(from);
+    if (!n) return null;
+    const col = columns.get(n.col) ?? [];
+    const i = col.findIndex((x) => x.id === from);
+    if (key === "ArrowDown") return col[i + 1]?.id ?? null;
+    if (key === "ArrowUp") return col[i - 1]?.id ?? null;
+    if (key === "Home") return col[0]?.id ?? null;
+    if (key === "End") return col[col.length - 1]?.id ?? null;
+    if (key === "ArrowRight" || key === "ArrowLeft") {
+      const dir = key === "ArrowRight" ? 1 : -1;
+      const order = [...columns.keys()].sort((a, b) => a - b);
+      const next = order[order.indexOf(n.col) + dir];
+      if (next === undefined) return null;
+      const cands = columns.get(next) ?? [];
+      const linked = cands.filter((c) => neighbours.get(from)?.has(c.id));   // prefer a connected node
+      const pool = linked.length ? linked : cands;
+      return pool.reduce((best, c) => (Math.abs(c.y - n.y) < Math.abs(best.y - n.y) ? c : best), pool[0])?.id ?? null;
+    }
+    return null;
+  };
+
   const select = (id: string) => {
     setSelected(id); setFocusOnly(false);
     try { history.replaceState(null, "", `#/graph/${encodeURIComponent(id)}`); } catch { /* sandboxed: link sharing only */ }
   };
   const nodeKey = (id: string) => (e: KeyboardEvent<SVGGElement>) => {
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(id); }
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFocusId(id); select(id); return; }
+    const next = step(id, e.key);
+    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (next) moveFocus(next);
+    }
   };
 
   const results = useMemo(() => (data && query.trim() ? data.nodes.filter((n) => matches(n, query)).slice(0, 50) : []), [data, query]);
@@ -216,7 +306,7 @@ export default function DependencyGraph({ scanId, initialNode }: { scanId: strin
 
       <div className="graph-wrap">
         <div ref={box} className="graph-canvas" tabIndex={0} role="application"
-             aria-label="Cryptographic dependency graph. Use Tab to move between nodes, Enter to select; arrow keys pan, plus and minus zoom, 0 fits."
+             aria-label="Cryptographic dependency graph. Tab focuses a node; arrow keys move between nodes (left/right follows connections), Enter selects. On the background, arrow keys pan, plus and minus zoom, 0 fits."
              onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp}
              onKeyDown={onCanvasKey}>
           <svg width="100%" height="100%" className={br ? "has-selection" : ""}>
@@ -226,7 +316,7 @@ export default function DependencyGraph({ scanId, initialNode }: { scanId: strin
               </marker>
             </defs>
             <g transform={`translate(${view.x},${view.y}) scale(${view.k})`}>
-              {layout.edges.map((e) => {
+              {culled.edges.map((e) => {
                 const s = placed.get(e.source), t = placed.get(e.target);
                 if (!s || !t) return null;
                 const hot = br && (impact.direct.has(e.source) || impact.confirmed.has(e.source) || impact.inferred.has(e.source)
@@ -236,15 +326,15 @@ export default function DependencyGraph({ scanId, initialNode }: { scanId: strin
                              className={`edge e-${e.type.split(" ")[0].toLowerCase()} ${e.confidence} ${hot ? "hot" : ""}`}
                              markerEnd={e.arc ? "url(#qmc-arrow)" : undefined}><title>{`${e.type} (${e.confidence})`}</title></path>;
               })}
-              {layout.nodes.map((n) => {
+              {culled.nodes.map((n) => {
                 const chars = Math.floor((n.w - 16) / 7);
                 const label = n.label.length > chars ? "…" + n.label.slice(-(chars - 1)) : n.label;
                 const vuln = n.type === "algorithm" ? n.quantum_vulnerable : n.type === "finding" ? n.quantum_vulnerable : (n.vulnerable_count ?? 0) > 0;
                 return (
-                  <g key={n.id} data-node={n.id} transform={`translate(${n.x},${n.y})`} tabIndex={0} role="button"
+                  <g key={n.id} data-node={n.id} transform={`translate(${n.x},${n.y})`} tabIndex={n.id === tabStop ? 0 : -1} role="button"
                      aria-label={`${TYPE_LABEL[n.type]} ${n.label}. ${nodeSubtitle(n)}`} aria-pressed={selected === n.id}
                      className={`node t-${n.type} ${stateOf(n)} ${selected === n.id ? "sel" : ""} ${n.match ? "match" : ""} ${vuln ? "vuln" : ""} ${n.type === "file" && !n.crypto ? "dependent" : ""}`}
-                     onClick={() => select(n.id)} onKeyDown={nodeKey(n.id)}>
+                     onClick={() => { setFocusId(n.id); select(n.id); }} onKeyDown={nodeKey(n.id)} onFocus={() => setFocusId(n.id)}>
                     <rect width={n.w} height={n.h} rx={6} />
                     {(n.max_band || n.band) && <rect className="bandbar" width={4} height={n.h} rx={2}
                                                    style={{ fill: `var(--band-${(n.max_band || n.band || "").toLowerCase() === "informational" ? "info" : (n.max_band || n.band || "").toLowerCase()})` }} />}
@@ -298,6 +388,7 @@ function NodeDetails({ node, br, loading, error, onSelect, data }: {
         <p><Band band={node.band ?? null} qmp={node.qmp} /> {node.hndl && <Badge tone="hndl">HNDL</Badge>}{" "}
           <a href={`#/finding/${node.fid}`}>Open finding detail →</a></p>)}
       {node.type === "algorithm" && node.quantum_vulnerable && <p><Badge tone="warn">quantum-vulnerable</Badge></p>}
+      <Relationships node={node} data={data} onSelect={onSelect} />
       {loading && <p className="dim" role="status">Computing blast radius…</p>}
       {error && <p className="error" role="alert">{error}</p>}
       {br && br.node.id === node.id && <BlastPanel br={br} onSelect={onSelect} />}
@@ -375,5 +466,43 @@ function BlastPanel({ br, onSelect }: { br: BlastRadius; onSelect: (id: string) 
         <div className="callout" role="note"><b>Limitations</b><ul>{br.limitations.map((l) => <li key={l}>{l}</li>)}</ul></div>)}
       <p className="fine"><b>Confirmed:</b> {br.meaning.confirmed} <b>Inferred:</b> {br.meaning.inferred}</p>
     </section>
+  );
+}
+
+const REL_LABEL: Record<string, [string, string]> = {          // [outgoing, incoming]
+  IMPORTS: ["Imports", "Imported by"], USES: ["Uses", "Used by"], CONTAINS: ["Contains", "Contained in"],
+};
+const MAX_REL = 40;
+
+/** Every edge touching the node, grouped by relationship and direction, with confidence and the first evidence. */
+function Relationships({ node, data, onSelect }: { node: GraphNode; data: GraphData; onSelect: (id: string) => void }) {
+  const byId = useMemo(() => new Map(data.nodes.map((n) => [n.id, n] as const)), [data]);
+  const groups = useMemo(() => {
+    const g = new Map<string, { other: string; confidence: string; basis: string; evidence: Evidence[] }[]>();
+    for (const e of data.edges) {
+      const out = e.source === node.id, inn = e.target === node.id;
+      if (!out && !inn) continue;
+      const key = `${REL_LABEL[e.type]?.[out ? 0 : 1] ?? e.type}`;
+      g.set(key, [...(g.get(key) ?? []), { other: out ? e.target : e.source, confidence: e.confidence, basis: e.basis, evidence: e.evidence }]);
+    }
+    return [...g.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
+  }, [data, node.id]);
+  if (!groups.length) return null;
+  return (
+    <details className="relationships">
+      <summary>Relationships ({groups.reduce((n, [, v]) => n + v.length, 0)})</summary>
+      {groups.map(([label, items]) => (
+        <div key={label}>
+          <h5>{label} ({items.length})</h5>
+          <ul className="plain">{items.slice(0, MAX_REL).map((it) => (
+            <li key={it.other}>
+              <button className="linklike" onClick={() => onSelect(it.other)}>{byId.get(it.other)?.label ?? it.other}</button>{" "}
+              {it.confidence === "inferred" && <Badge tone="warn">inferred</Badge>} <span className="fine">{it.basis}</span>
+              {it.evidence[0] && <EvidenceList items={[it.evidence[0]]} />}
+            </li>))}
+            {items.length > MAX_REL && <li className="fine">… {items.length - MAX_REL} more (use search or focus mode)</li>}
+          </ul>
+        </div>))}
+    </details>
   );
 }
