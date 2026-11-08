@@ -10,5 +10,5 @@ def test_health_ok():
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "ok"
-    assert body["engine_version"] == "0.3.0"
+    assert body["engine_version"] == "0.4.0"
     assert "copilot_mode" not in body          # no Copilot exists yet; health must not advertise one

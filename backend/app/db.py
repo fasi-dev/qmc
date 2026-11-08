@@ -24,6 +24,8 @@ class ScanRow(Base):
     manifest: Mapped[dict] = mapped_column(JSON)               # ingestion summary (no file list)
     analysis: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)   # sha256 of the per-scan access token
+    # Dependency-graph inputs (resolved import records). NULL for scans analyzed before the feature existed.
+    graph: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class FindingRow(Base):
@@ -64,9 +66,13 @@ def upgrade_schema(engine: Engine) -> None:
     create_all() only creates missing TABLES, so new columns/indexes on existing tables are added here."""
     insp = inspect(engine)
     with engine.begin() as conn:
-        if "token_hash" not in {c["name"] for c in insp.get_columns("scans")}:
+        cols = {c["name"] for c in insp.get_columns("scans")}
+        if "token_hash" not in cols:
             conn.execute(text("ALTER TABLE scans ADD COLUMN token_hash VARCHAR(64)"))
             log.info("schema upgrade: added scans.token_hash (existing scans become admin-only)")
+        if "graph" not in cols:
+            conn.execute(text("ALTER TABLE scans ADD COLUMN graph JSON"))
+            log.info("schema upgrade: added scans.graph (existing scans show direct usage only until re-scanned)")
     try:
         with engine.begin() as conn:
             conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_findings_scan_fid ON findings (scan_id, fid)"))

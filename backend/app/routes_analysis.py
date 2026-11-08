@@ -8,7 +8,7 @@ import shutil
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import PlainTextResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -19,6 +19,7 @@ from .access import new_token
 from .config import Settings, get_settings
 from .db import ScanRow, open_session
 from .deps import creation_allowed, require_admin, scan_access
+from .graph import NodeNotFound, NotSelectable, blast_radius
 from .ingestion import IngestionError, ingest_archive
 from .ingestion.pipeline import create_workspace
 from .limits import gate_for
@@ -176,3 +177,34 @@ def unsuppress(fid: str, sid: str = Depends(scan_access), s: Settings = Depends(
         return analysis.set_suppression(db, sid, fid, None, None)
     finally:
         db.close()
+
+
+# ------------------------------------------------------------------ dependency graph / blast radius
+NODE_ID_PATTERN = r"^(algorithm|library|finding|file|service):[^\x00-\x1f]{1,600}$"
+
+
+@router.get("/scans/{scan_id}/graph")
+def dependency_graph(sid: str = Depends(scan_access), s: Settings = Depends(get_settings)) -> dict:
+    """Evidence-backed cryptographic dependency graph (nodes, edges with evidence + confidence, stats, limitations)."""
+    db = open_session(s)
+    try:
+        return analysis.dependency_graph(db, sid).to_dict()
+    finally:
+        db.close()
+
+
+@router.get("/scans/{scan_id}/graph/blast-radius")
+def graph_blast_radius(node: str = Query(..., min_length=3, max_length=620, pattern=NODE_ID_PATTERN),
+                       sid: str = Depends(scan_access), s: Settings = Depends(get_settings)) -> dict:
+    """Direct and indirect impact of changing one algorithm, library, finding or file (node id from /graph)."""
+    db = open_session(s)
+    try:
+        g = analysis.dependency_graph(db, sid)
+    finally:
+        db.close()
+    try:
+        return blast_radius(g, node)
+    except NodeNotFound:
+        raise IngestionError("node_not_found", "No such node in this scan's dependency graph.", 404)
+    except NotSelectable:
+        raise IngestionError("node_not_selectable", "Select an algorithm, library, finding or file to compute a blast radius.", 422)

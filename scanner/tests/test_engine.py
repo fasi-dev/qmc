@@ -27,7 +27,7 @@ def test_findings_match_schema_exactly(scan):
         assert tuple(f) == FINDING_KEYS and tuple(f["metadata"]) == METADATA_KEYS
         validate_finding(f)
         assert re.fullmatch(r"CRYPTO-\d{3,}", f["id"]) and f["scan_id"] == "11111111-1111-4111-8111-111111111111"
-        assert f["engine_version"] == "0.3.0" and re.fullmatch(r"\d+\.\d+\.\d+", f["rule_version"])
+        assert f["engine_version"] == "0.4.0" and re.fullmatch(r"\d+\.\d+\.\d+", f["rule_version"])
         assert isinstance(f["line_start"], int) and isinstance(f["confidence"], float) and isinstance(f["quantum_vulnerable"], bool)
         assert f["metadata"]["in_dead_code"] is False
     json.dumps(res.to_dict())   # fully JSON-serialisable
