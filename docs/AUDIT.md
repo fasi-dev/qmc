@@ -334,7 +334,7 @@ SQLite file shaped like the old schema (idempotent upgrade; 1 of 8 concurrent cl
 rejected). Frontend changes were type-checked against minimal React stubs only. Acme demo output is still
 byte-identical to `main`.
 
-**Not executed here** (no FastAPI/httpx/SQLAlchemy/npm/Docker): `backend/tests/test_security_api.py` (16 API
+**Not executed here** (no FastAPI/httpx/SQLAlchemy/npm/Docker): `backend/tests/test_security_api.py` (19 API
 tests: token enforcement on every scan route, operator-only list, rate limit, capacity, retention, concurrent
 analyze, claim release on failure), the rest of the backend suite (updated for tokens via a token-remembering test
 client), the UI tests (2 new: keyboard navigation, no access without token), the Docker builds and the CI
