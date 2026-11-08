@@ -4,6 +4,8 @@ import uuid
 
 import pytest
 
+from tests.conftest import ADMIN
+
 from app import analysis
 
 
@@ -142,13 +144,13 @@ def test_upload_then_analyze_flow_and_idempotency_guard(client, settings):
     from tests.test_scanner_integration import acme_zip
     r = client.post("/api/scans?filename=acme.zip", content=acme_zip())
     scan_id = r.json()["scan_id"]
-    assert client.get("/api/scans").json()[0]["status"] == "ingested"
+    assert client.get("/api/scans", headers=ADMIN).json()[0]["status"] == "ingested"
     s = client.post(f"/api/scans/{scan_id}/analyze")
     assert s.status_code == 200 and s.json()["scan"]["status"] == "analyzed"
     assert client.post(f"/api/scans/{scan_id}/analyze").status_code == 409
-    assert client.get("/api/scans").json()[0]["status"] == "analyzed"
+    assert client.get("/api/scans", headers=ADMIN).json()[0]["status"] == "analyzed"
     assert client.delete(f"/api/scans/{scan_id}").status_code == 200
-    assert client.get(f"/api/scans/{scan_id}/summary").status_code == 404 and client.get("/api/scans").json() == []
+    assert client.get(f"/api/scans/{scan_id}/summary").status_code == 404 and client.get("/api/scans", headers=ADMIN).json() == []
 
 
 def test_analysis_is_deterministic_across_runs(client):

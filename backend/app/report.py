@@ -23,7 +23,10 @@ def build_report(db: Session, scan_id: str) -> str:
     code = [r for r in rows if not r.comment_only]
     L: list[str] = [f"# Quantum Migration Copilot report: {scan.repo_name}", "",
                     "> **Static-analysis estimates. Not a certification.** Quantum-vulnerable means vulnerable to a *future* "
-                    "cryptographically relevant quantum computer, not broken today.", "",
+                    "cryptographically relevant quantum computer, not broken today.", ""]
+    if sm["scan_warnings"]:
+        L += ["> **Scan completeness warning.** " + " ".join(sm["scan_warnings"]), ""]
+    L += [
                     "## 1. Executive summary", "",
                     f"- **{t['crypto_findings']}** cryptographic findings in **{t['services']}** service(s); **{t['quantum_vulnerable']}** use quantum-vulnerable public-key cryptography.",
                     f"- **{t['critical']}** findings are in the Critical priority band; **{t['hndl_elevated']}** carry an *elevated harvest-now-decrypt-later* flag "
