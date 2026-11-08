@@ -253,5 +253,6 @@ def export_csv(rows: list[dict]) -> str:
     w = csv.writer(buf)
     w.writerow(cols)
     for r in rows:
-        w.writerow([("'" + str(r[c]) if isinstance(r[c], str) and r[c][:1] in "=+-@" else r[c]) for c in cols])   # CSV-injection safe
+        # CSV/formula-injection guard (OWASP): neutralise cells a spreadsheet would treat as a formula, incl. TAB/CR prefixes.
+        w.writerow([("'" + r[c] if isinstance(r[c], str) and r[c][:1] in ("=", "+", "-", "@", "\t", "\r") else r[c]) for c in cols])
     return buf.getvalue()
