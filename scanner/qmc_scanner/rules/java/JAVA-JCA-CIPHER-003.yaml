@@ -1,0 +1,37 @@
+rule_id: JAVA-JCA-CIPHER-003
+rule_version: 1.0.0
+language: java
+description: Cipher.getInstance with a legacy cipher (DESede/3DES, DES, RC4/ARCFOUR, Blowfish)
+library: javax.crypto
+api: Cipher.getInstance
+algorithm: 3DES
+primitive: symmetric
+operation: encryption
+confidence: 0.95
+match:
+  type: regex
+  pattern: \bCipher\s*\.\s*getInstance\s*\(\s*"(?P<alg>DESede|TripleDES|DES|RC4|ARCFOUR|Blowfish)(?:/[A-Za-z0-9/_.+-]*)?"
+  flags:
+  - IGNORECASE
+  value_group: alg
+  value_map:
+    desede:
+      algorithm: 3DES
+    tripledes:
+      algorithm: 3DES
+    des:
+      algorithm: DES
+    rc4:
+      algorithm: RC4
+    arcfour:
+      algorithm: RC4
+    blowfish:
+      algorithm: Blowfish
+  refine:
+  - window: 400
+    pattern: \bENCRYPT_MODE\b
+    operation: encryption
+  - window: 400
+    pattern: \bDECRYPT_MODE\b
+    operation: decryption
+  file_requires: java\.security|javax\.crypto|org\.bouncycastle

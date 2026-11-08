@@ -15,6 +15,9 @@ PY_NEG = {
     "unrelated_module_same_name": "import rsa\nrsa.generate_private_key()\n",   # python-rsa has no such API
     "reference_not_call": "import hashlib\nf = hashlib.sha1\n",
     "md5_reference_not_call": "import hashlib\nf = hashlib.md5\n",
+    "alias_rebound_is_not_guessed": "from cryptography.hazmat.primitives.asymmetric import rsa\ngen = rsa.generate_private_key\ngen = make_something_else\ngen(65537, 2048)\n",
+    "alias_of_unimported_name": "gen = rsa.generate_private_key\ngen(65537, 2048)\n",
+    "alias_in_loop_is_not_guessed": "from cryptography.hazmat.primitives.asymmetric import rsa\ngen = rsa.generate_private_key\nfor gen in fns:\n    gen(65537, 2048)\n",
     "variable_algorithm_not_guessed": "import jwt\nalg = 'ES256'\njwt.encode(p, k, algorithm=alg)\n",
     "jwt_default_algorithm_not_guessed": "import jwt\njwt.encode(p, k)\n",
     "oqs_unknown_name_not_guessed": "import oqs\noqs.KeyEncapsulation(name)\n",

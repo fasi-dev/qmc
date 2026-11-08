@@ -105,3 +105,18 @@ def test_md5_is_classical_hygiene_never_retained():
     p = plan_for(f, r)
     assert p["rule_id"] == "R-09" and "Retain" not in p["why"] and "SHA-256" in p["steps"][0]
     assert r["factors"]["QE"]["value"] == 1 and r["band"] == "Review" and "classical hygiene" in r["badges"]
+
+
+@pytest.mark.parametrize("alg", ["3DES", "DES", "RC4", "Blowfish"])
+def test_legacy_ciphers_are_replaced_with_aes_not_retained_or_pqc(alg):
+    f = F(algorithm=alg, primitive="symmetric", operation="encryption", quantum_vulnerable=False)
+    r = score(f, PAYMENT)
+    p = plan_for(f, r)
+    assert p["rule_id"] == "R-13" and "AES-256-GCM" in p["steps"][0] and p["no_pqc_mapping"] is True
+    assert not any(x in p["direction"] for x in ("ML-KEM", "ML-DSA", "SLH-DSA"))
+    assert r["factors"]["QE"]["value"] == 1 and r["band"] == "Review"
+    assert "classical hygiene" in r["badges"] and "symmetric key size" not in r["badges"]
+
+
+def test_aes_still_r08():
+    assert plan(algorithm="AES", primitive="symmetric", operation="encryption", quantum_vulnerable=False)["rule_id"] == "R-08"

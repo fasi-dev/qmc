@@ -19,6 +19,7 @@ KE_ALGORITHMS = {"ECDH", "DH", "DH/ECDH"}
 SIGNATURE_ONLY = {"ECDSA", "EdDSA", "DSA", "RSA/ECDSA"}
 HYGIENE_RULES = {"CFG-NGINX-TLS-001", "CFG-NGINX-CIPHER-004", "CFG-STRUCT-TLS-001", "CFG-STRUCT-TLS-002"}
 BROKEN_HASHES = {"SHA-1", "MD5"}   # practical collisions today: classical hygiene, not a quantum issue (07 R-09)
+WEAK_CIPHERS = {"3DES", "DES", "RC4", "Blowfish"}   # 64-bit blocks / short keys / keystream biases: classical hygiene
 
 
 def round_half_up(x: float) -> int:
@@ -62,7 +63,7 @@ def _qe(f: dict, role: str | None) -> tuple[int, str]:
             return 3, f"{f['algorithm']} used for digital signatures: quantum-vulnerable (forgeable on a future quantum computer)."
         return 4, (f"{f['algorithm']} key generation: the role cannot be determined from key generation alone, so it is "
                    "conservatively treated like key establishment (06 Example B).")
-    if f["rule_id"] in HYGIENE_RULES or f["algorithm"] in BROKEN_HASHES:
+    if f["rule_id"] in HYGIENE_RULES or f["algorithm"] in BROKEN_HASHES or f["algorithm"] in WEAK_CIPHERS:
         return 1, f"{f['algorithm']} is a classical-hygiene issue (deprecated for non-quantum reasons), not a quantum vulnerability."
     if f["primitive"] == "symmetric" and f["metadata"].get("key_size") == 128:
         return 1, "AES-128 has reduced Grover headroom; AES-256 is recommended for long-term data."
@@ -99,7 +100,7 @@ def score(f: dict, service_meta: dict | None) -> dict | None:
     qe, qe_why = _qe(f, role)
     mc, mc_why = _mc(f, role)
     # AES-128 gets QE 1 for reduced Grover headroom. That is not "classical hygiene" (nothing is deprecated), so it is labelled separately.
-    grover_only = qe == 1 and f["primitive"] == "symmetric"
+    grover_only = qe == 1 and f["primitive"] == "symmetric" and f["algorithm"] not in WEAK_CIPHERS
 
     def meta_factor(key: str, field: str, table: dict | None, label: str):
         v = meta.get(field)

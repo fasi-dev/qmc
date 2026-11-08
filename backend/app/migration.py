@@ -37,7 +37,9 @@ RULES = {
     "R-06": ("EdDSA (Ed25519/Ed448) signatures", SIG, "SIG"), "R-07": ("DSA signatures", SIG, "SIG"),
     "R-08": ("AES", None, None), "R-09": ("SHA-1 / MD5", None, None), "R-10": ("SHA-2 / SHA-3", None, None),
     "R-11": ("HMAC", None, None), "R-12": ("Unknown / unclassified crypto", None, None),
+    "R-13": ("Legacy symmetric cipher (3DES / DES / RC4 / Blowfish)", None, None),   # added in the 2026-11 audit
 }
+LEGACY_CIPHERS = {"3DES", "DES", "RC4", "Blowfish"}
 NO_PQC = {
     "R-08": ("Symmetric crypto is not Shor-vulnerable. Consider AES-256 for Grover headroom.", ["AES-256 (or AES-128 with adequate planning) remains appropriate."]),
     "R-09": ("SHA-1 and MD5 are deprecated for classical reasons, not quantum ones. Replace with SHA-256/SHA-3 (classical hygiene).",
@@ -45,6 +47,11 @@ NO_PQC = {
               "If the digest is a non-security checksum (e.g. cache keys), document that decision instead of migrating."]),
     "R-10": ("Hash functions face only generic quantum speedups. Retain; prefer >= 256-bit output (SHA-384 for long-term headroom).", []),
     "R-11": ("MACs are symmetric; adequate key and tag sizes suffice. Retain.", []),
+    "R-13": ("3DES, DES, RC4 and Blowfish are weak for classical reasons (64-bit blocks, short keys, RC4 keystream biases), "
+             "not quantum ones. Replace with AES-256-GCM (classical hygiene).",
+             ["NIST SP 800-131A Rev. 2 disallows DES and disallows 3DES (TDEA) for encryption after 2023; decryption of legacy data only.",
+              "RC4 is prohibited in TLS (RFC 7465).",
+              "Stored ciphertext must be decrypted and re-encrypted; plan a key and data migration, not only a code change."]),
 }
 CRYPTO_AGILITY = [
     "Abstraction layer: route all crypto through one internal interface (e.g. CryptoProvider.encapsulate/sign/verify); no algorithm names outside it.",
@@ -74,7 +81,7 @@ def pick_rule(f: dict, role: str | None) -> tuple[str, str | None]:
         return "R-12", (f"The role of this {alg} usage cannot be determined statically; depending on its role the direction would be "
                         f"{names.get(alg, 'role-dependent')}. Not guessed: assign to a human reviewer.")
     if prim == "symmetric":
-        return "R-08", None
+        return ("R-13" if alg in LEGACY_CIPHERS else "R-08"), None
     if prim == "hash":
         return ("R-09" if alg in ("SHA-1", "MD5") else "R-10"), None
     if prim == "mac":
@@ -116,5 +123,6 @@ def plan_for(f: dict, risk: dict | None) -> dict | None:
     else:
         why, caveats = NO_PQC[rid]
         out.update(direction="No PQC migration required", why=why, caveats=caveats, interoperability=None, human_review=False,
-                   steps=["Replace with SHA-256 or SHA-3."] if rid == "R-09" else [])
+                   steps={"R-09": ["Replace with SHA-256 or SHA-3."],
+                          "R-13": ["Replace with AES-256-GCM (authenticated encryption).", "Re-encrypt stored data and rotate keys."]}.get(rid, []))
     return out

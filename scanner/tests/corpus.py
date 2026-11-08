@@ -60,6 +60,14 @@ PY = [
      [("PY-HMAC-001", "HMAC", "mac_generation", None), ("PY-HMAC-001", "HMAC", "mac_generation", None)]),
     ("oqs", "t.py", "import oqs\nk = oqs.KeyEncapsulation('ML-KEM-768')\ns = oqs.Signature('ML-DSA-65')\nh = oqs.Signature('SLH-DSA-SHA2-128s')\n",
      [("PY-OQS-KEM-001", "ML-KEM", "key_generation", None), ("PY-OQS-SIG-001", "ML-DSA", "key_generation", None), ("PY-OQS-SIG-001", "SLH-DSA", "key_generation", None)]),
+    ("weak_ciphers_pycryptodome", "t.py", "from Crypto.Cipher import DES3, DES, ARC4\nfrom Cryptodome.Cipher import Blowfish\na = DES3.new(k, DES3.MODE_CBC, iv)\nb = DES.new(k, DES.MODE_ECB)\nc = ARC4.new(k)\nd = Blowfish.new(k, Blowfish.MODE_CBC, iv)\n",
+     [("PY-WEAK-CIPHER-001", "3DES", "encryption", None), ("PY-WEAK-CIPHER-001", "DES", "encryption", None),
+      ("PY-WEAK-CIPHER-001", "RC4", "encryption", None), ("PY-WEAK-CIPHER-001", "Blowfish", "encryption", None)]),
+    ("weak_ciphers_cryptography", "t.py", f"from {PYC}.ciphers import algorithms\nfrom cryptography.hazmat.decrepit.ciphers import algorithms as old\na = algorithms.TripleDES(k)\nb = old.ARC4(k)\nc = old.Blowfish(k)\n",
+     [("PY-WEAK-CIPHER-001", "3DES", "encryption", None), ("PY-WEAK-CIPHER-001", "RC4", "encryption", None), ("PY-WEAK-CIPHER-001", "Blowfish", "encryption", None)]),
+    ("function_alias_resolved", "t.py", f"from {PYC}.asymmetric import rsa\ngen = rsa.generate_private_key\nkey = gen(65537, 3072)\n",
+     [("PY-CRYPTOGRAPHY-RSA-001", "RSA", "key_generation", 3072)]),
+    ("module_alias_resolved", "t.py", "import hashlib\nH = hashlib\nd = H.sha1(b'x')\n", [("PY-HASHLIB-001", "SHA-1", "hashing", None)]),
 ]
 
 JAVA = [
@@ -88,6 +96,9 @@ JAVA = [
     ("pqc", JH + 'KEM k = KEM.getInstance("ML-KEM-768");\nKeyPairGenerator.getInstance("ML-DSA");\nKeyPairGenerator.getInstance("ML-KEM");\nvar s = MLDSAParameterSpec.ml_dsa_65;\nvar t = MLKEMParameterSpec.ml_kem_768;\n',
      [("JAVA-PQC-002", "ML-KEM", "encapsulation", None), ("JAVA-JCA-KPG-001", "ML-DSA", "key_generation", None), ("JAVA-JCA-KPG-001", "ML-KEM", "key_generation", None),
       ("JAVA-PQC-001", "ML-DSA", "key_generation", None), ("JAVA-PQC-001", "ML-KEM", "key_generation", None)]),
+    ("cipher_weak", JH + 'Cipher.getInstance("DESede/CBC/PKCS5Padding");\nCipher.getInstance("DES");\nCipher.getInstance("RC4");\nCipher.getInstance("ARCFOUR");\nCipher.getInstance("Blowfish/ECB/NoPadding");\n',
+     [("JAVA-JCA-CIPHER-003", "3DES", "encryption", None), ("JAVA-JCA-CIPHER-003", "DES", "encryption", None), ("JAVA-JCA-CIPHER-003", "RC4", "encryption", None),
+      ("JAVA-JCA-CIPHER-003", "RC4", "encryption", None), ("JAVA-JCA-CIPHER-003", "Blowfish", "encryption", None)]),
 ]
 
 JSH = "const crypto = require('crypto');\n"
@@ -122,6 +133,11 @@ JS = [
      [("JS-CRYPTOJS-001", "AES", "encryption", None), ("JS-CRYPTOJS-001", "SHA-1", "hashing", None), ("JS-CRYPTOJS-001", "HMAC", "mac_generation", None)]),
     ("tweetnacl", "t.js", "const nacl = require('tweetnacl');\nnacl.sign.keyPair();\nnacl.sign(msg, sk);\nnacl.sign.detached(m, sk);\nnacl.sign.open(sm, pk);\n",
      [("JS-TWEETNACL-001", "EdDSA", "key_generation", None), ("JS-TWEETNACL-001", "EdDSA", "signature", None), ("JS-TWEETNACL-001", "EdDSA", "signature", None), ("JS-TWEETNACL-001", "EdDSA", "verification", None)]),
+    ("weak_cipher", "t.js", JSH + "crypto.createCipheriv('des-ede3-cbc', k, iv);\ncrypto.createDecipheriv('des-cbc', k, iv);\ncrypto.createCipheriv('rc4', k, null);\ncrypto.createDecipheriv('bf-cbc', k, iv);\n",
+     [("JS-NODE-CRYPTO-WEAK-001", "3DES", "encryption", None), ("JS-NODE-CRYPTO-WEAK-002", "DES", "decryption", None),
+      ("JS-NODE-CRYPTO-WEAK-001", "RC4", "encryption", None), ("JS-NODE-CRYPTO-WEAK-002", "Blowfish", "decryption", None)]),
+    ("cryptojs_weak", "t.js", "import CryptoJS from 'crypto-js';\nCryptoJS.TripleDES.encrypt(m, k);\nCryptoJS.RC4.encrypt(m, k);\n",
+     [("JS-CRYPTOJS-001", "3DES", "encryption", None), ("JS-CRYPTOJS-001", "RC4", "encryption", None)]),
 ]
 
 # Configuration / static-text cases: (id, filename, source, expected [(rule_id, algorithm, operation, key_size)])

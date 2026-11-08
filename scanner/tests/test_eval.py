@@ -11,4 +11,4 @@ def test_evaluation_set_has_no_false_positives_and_no_realistic_misses():
 def test_known_limitations_are_still_reported_as_misses():
     """If a limitation gets fixed, move the case to kind='realistic' and update docs/SCANNER_EVALUATION numbers."""
     r = evaluate()
-    assert r["by_kind"]["limitation"]["tp"] == 0 and r["by_kind"]["limitation"]["fn"] == 6
+    assert r["by_kind"]["limitation"]["tp"] == 0 and r["by_kind"]["limitation"]["fn"] == 3

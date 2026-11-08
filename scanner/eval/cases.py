@@ -147,7 +147,7 @@ CASES: list[dict] = [
         "ssl_ciphers !aNULL:!MD5:!RC4:!3DES;\n"),
         expected=[]),
     # ------------------------------------------------------------------ known limitations (real usage)
-    dict(id="lim-py-function-alias", kind="limitation", file="lim/alias.py", src=(
+    dict(id="fixed-py-function-alias", kind="realistic", file="lim/alias.py", src=(
         f"from {PYC}.asymmetric import rsa\n"
         "gen = rsa.generate_private_key\n"
         "key = gen(65537, 2048)\n"),
@@ -168,11 +168,11 @@ CASES: list[dict] = [
         "const cfg = { hash: 'sha1' };\n"
         "const h = crypto.createHash(cfg.hash);\n"),
         expected=[(3, "SHA-1")]),
-    dict(id="lim-py-3des", kind="limitation", file="lim/legacy_cipher.py", src=(
+    dict(id="fixed-py-3des", kind="realistic", file="lim/legacy_cipher.py", src=(
         "from Crypto.Cipher import DES3\n"
         "c = DES3.new(key, DES3.MODE_CBC, iv)\n"),
         expected=[(2, "3DES")]),
-    dict(id="lim-java-3des", kind="limitation", file="lim/Legacy.java", src=(
+    dict(id="fixed-java-3des", kind="realistic", file="lim/Legacy.java", src=(
         "import javax.crypto.*;\n"
         "class Legacy { Object c() throws Exception { return Cipher.getInstance(\"DESede/CBC/PKCS5Padding\"); } }\n"),
         expected=[(2, "3DES")]),
