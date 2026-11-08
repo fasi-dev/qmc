@@ -233,21 +233,21 @@ can be shared once S1 is solved.
 
 | Rank | Improvement | Priority | Status |
 |---|---|---|---|
-| 1 | Auth / tenant isolation for scans; remove public scan list (S1) | P0 | needs approval |
-| 2 | Retention, rate limit, concurrency cap (S2) | P0 | proposed |
-| 3 | Atomic analyze + unique (scan_id, fid) (S3) | P0 | proposed (exact fix in S3) |
+| 1 | Auth / tenant isolation for scans; remove public scan list (S1) | P0 | **done (M1)** `5b56acf`, `b7e122e` |
+| 2 | Retention, rate limit, concurrency cap (S2) | P0 | **done (M1)** `5b56acf` |
+| 3 | Atomic analyze + unique (scan_id, fid) (S3) | P0 | **done (M1)** `5b56acf` |
 | 4 | UTF-8 BOM false negatives (B1) | P0 | **done** `f246712` |
 | 5 | Token-based context inference (B2) | P0 | **done** `4949a0e` |
 | 6 | MD5 detection + correct scoring/migration (B3) | P0 | **done** `2840f3c` (revertable) |
 | 7 | JS/TS template interpolation false negatives (B4) | P0 | **done** `ce0ef85` |
-| 8 | CI workflow running all three suites | P1 | proposed |
-| 9 | Surface partial scans and skipped files (S4) | P1 | proposed |
+| 8 | CI workflow running all three suites | P1 | **done (M1)** `d46ded5` (runs on first push) |
+| 9 | Surface partial scans and skipped files (S4) | P1 | **done (M1)** `5b56acf`, `b7e122e` |
 | 10 | Scanner evaluation set with P/R/F1 | P1 | **done** `740d819` (to be grown with real repos) |
 | 11 | Windows-safe test IDs (B9) | P1 | **done** `08a8af0` |
-| 12 | Detect 3DES/DES/RC4/Blowfish in code; resolve same-file constants/aliases | P1 | proposed |
-| 13 | Production frontend build + pinned deps + health checks (S5, section 10) | P1 | needs approval |
+| 12 | Detect 3DES/DES/RC4/Blowfish in code; resolve same-file constants/aliases | P1 | **done (M1)** for ciphers + Python aliases `ea0877e`; Java/JS constants still open |
+| 13 | Production frontend build + pinned deps + health checks (S5, section 10) | P1 | **done (M1)** `d46ded5` (lock file still to generate) |
 | 14 | Scoring/terminology fixes: AES-128 label, HNDL not assessed, CSV guard (B6-B8) | P1 | **done** `4b2fe3f`, `608fe91` |
-| 15 | Keyboard-accessible tables; context-specific migration caveats (JOSE/X.509/TLS) | P2 | proposed |
+| 15 | Keyboard-accessible tables; context-specific migration caveats (JOSE/X.509/TLS) | P2 | **done (M1)** `b7e122e`, `558e1bd` |
 
 ## 12. Milestone roadmap
 
@@ -311,4 +311,48 @@ ways listed in B1-B7 (more findings for MD5/BOM/template-literal code, corrected
 routes, DB schema, CORS, Docker and environment configuration are unchanged. Existing stored scans are not migrated
 and keep their `engine_version 0.1.0` label.
 
-**Remaining issues**: S1-S6 and sections 5-10.
+**Remaining issues**: see section 14 (M1 resolved S1-S6).
+
+---
+
+## 14. Milestone M1 report (safe public demo + hygiene), approved by the owner
+
+**What changed and why**
+
+| Commit | Change | Audit item |
+|---|---|---|
+| `5b56acf` | Per-scan access tokens (SHA-256 stored, header `X-QMC-Scan-Token`, same 404 for wrong token and unknown scan); operator-only scan list (`QMC_ADMIN_TOKEN`); per-client rate limit on scan creation; analysis concurrency gate (503); retention purge and capacity cap; atomic analyze claim + unique index; additive schema upgrade for existing DBs; scanner timeout/file-size settings wired; completeness warnings in summary + report; CORS from env; health no longer advertises a Copilot | S1, S2, S3, S4, S6, sec. 3 |
+| `b7e122e` | UI sends tokens, authenticated report/CSV downloads, "Scan may be incomplete" banner, keyboard-accessible rows, "Report" no longer "soon" | S1, S4, sec. 8 |
+| `ea0877e` | 3DES/DES/RC4/Blowfish detection (4 new rules) scored as hygiene with new migration rule R-13; simple Python alias resolution; engine 0.3.0 | sec. 5 items 1-2 |
+| `558e1bd` | JWT/JOSE (RFC 9964), TLS hybrid-group and X.509 caveats in migration plans | sec. 7 item 1 |
+| `d46ded5` | nginx production frontend image, runtime/dev requirements split, health checks, CI workflow, egg-info untracked, `docs/DEPLOYMENT.md` | S5, sec. 9-10 |
+
+**Tests executed here**: scanner 348 passed; evaluation set precision 1.000 / recall 0.906 (3 documented dataflow
+limitations); backend pure-logic suites (`test_access_limits.py`, `test_risk.py`, `test_migration.py`) 78 passed
+(+1 environment error: needs FastAPI). The schema-upgrade SQL and the atomic claim were checked against a real
+SQLite file shaped like the old schema (idempotent upgrade; 1 of 8 concurrent claims wins; duplicate finding rows
+rejected). Frontend changes were type-checked against minimal React stubs only. Acme demo output is still
+byte-identical to `main`.
+
+**Not executed here** (no FastAPI/httpx/SQLAlchemy/npm/Docker): `backend/tests/test_security_api.py` (16 API
+tests: token enforcement on every scan route, operator-only list, rate limit, capacity, retention, concurrent
+analyze, claim release on failure), the rest of the backend suite (updated for tokens via a token-remembering test
+client), the UI tests (2 new: keyboard navigation, no access without token), the Docker builds and the CI
+workflow. **Run them before deploying** (section 13 commands; CI runs them on push). The concurrency test uses
+threads against SQLite; if it is flaky on your machine, report it rather than deleting it.
+
+**Could the deployed application be affected?** Yes, once pushed and redeployed. Follow the Render checklist in
+`docs/DEPLOYMENT.md`: set `QMC_TRUST_PROXY=1` on the backend, and make sure `VITE_API_URL` is available at build
+time if the frontend is a Docker service. Old scans become operator-only. The API now requires the scan token
+header, so an old frontend build cannot talk to the new backend (deploy both together).
+
+**Remaining open items**
+
+* Java/JS constant resolution (`static final String ALG = "RSA"`), `getattr` (sec. 5).
+* QMP methodology decisions (MC sign / lead time, sensitivity table, distinct-usage counts, graded exposure; sec. 6):
+  these change scores, so they need your decision.
+* A dependency lock file generated in a working environment (`pip-compile`), and an Alembic baseline before the next
+  schema change.
+* Rate limits/retention are per process (fine for one instance).
+* Labelled samples from real open-source repositories for the evaluation set.
+* P2/P3 features (migration progress tracking, evidence-backed blast radius, PQC Lab, grounded AI explanations).
