@@ -21,6 +21,7 @@ from .migration import CRYPTO_AGILITY, KE_TEXT, NO_PQC, RULES, SIG_TEXT, context
 from .readiness import LIBRARY_SUPPORT, REFERENCES
 
 SIMULATOR_VERSION = 1
+ARCH_MAX_FILES = 40          # architecture diagram size; the affected-file lists themselves are never truncated
 
 # ---- targets: id -> description + published sizes (bytes)
 TARGETS: dict[str, dict] = {
@@ -161,11 +162,14 @@ def _architecture(g: Graph, track_findings: list[dict], indirect: list[dict], ta
     """Current vs proposed view, restricted to evidence: affected files -> algorithm/library they use today, and the
     same files -> the proposed target. Indirect files keep their import edges (they are unchanged by the swap)."""
     direct = sorted({f["file"] for f in track_findings})
-    files = direct + [x["file"] for x in indirect if x["file"] not in direct]
+    direct_set = set(direct)
+    every = direct + [x["file"] for x in indirect if x["file"] not in direct_set]   # indirect is ordered nearest-first
+    files = every[:ARCH_MAX_FILES]                       # a diagram, not the list: the full lists are in "affected"
+    shown = set(files)
 
     def file_nodes() -> list[dict]:
-        return [{**g.nodes[file_id(p)], "role_in_change": "direct" if p in direct else "indirect"} for p in files if file_id(p) in g.nodes]
-    imports = [e for e in g.edges.values() if e["type"] == "IMPORTS" and e["source"][5:] in files and e["target"][5:] in files]
+        return [{**g.nodes[file_id(p)], "role_in_change": "direct" if p in direct_set else "indirect"} for p in files if file_id(p) in g.nodes]
+    imports = [e for e in g.edges.values() if e["type"] == "IMPORTS" and e["source"][5:] in shown and e["target"][5:] in shown]
     cur_nodes, cur_edges = file_nodes(), list(imports)
     for alg in sorted({f["algorithm"] for f in track_findings}):
         aid = f"algorithm:{alg}"
@@ -177,6 +181,8 @@ def _architecture(g: Graph, track_findings: list[dict], indirect: list[dict], ta
             cur_nodes.append(g.nodes[lid])
     seen = set()
     for f in track_findings:
+        if f["file"] not in shown:
+            continue
         for tgt in (f"algorithm:{f['algorithm']}", f"library:{f['library']}" if f.get("library") else None):
             if not tgt or tgt not in g.nodes:
                 continue
@@ -191,12 +197,18 @@ def _architecture(g: Graph, track_findings: list[dict], indirect: list[dict], ta
         prop_nodes.append({"id": tid, "type": "algorithm", "label": f"{target['name']} (proposed)", "proposed": True,
                            "quantum_vulnerable": False, "finding_count": 0, "max_band": None})
         for p in direct:
+            if p not in shown:
+                continue
             prop_edges.append({"id": f"USES:{file_id(p)}->{tid}", "type": "USES", "source": file_id(p), "target": tid,
                                "confidence": "inferred", "basis": "proposed change (not implemented)", "evidence": [], "evidence_count": 0})
-    return {"current": {"nodes": cur_nodes, "edges": sorted(cur_edges, key=lambda e: e["id"])},
+    truncated = len(every) > len(files)
+    return {"total_files": len(every), "shown_files": len(files), "truncated": truncated,
+            "current": {"nodes": cur_nodes, "edges": sorted(cur_edges, key=lambda e: e["id"])},
             "proposed": {"nodes": prop_nodes, "edges": sorted(prop_edges, key=lambda e: e["id"])},
-            "note": "The proposed view only changes the algorithm used by the directly affected files. Whether the same library can "
-                    "provide it depends on the installed version (see compatibility)."}
+            "note": ("The proposed view only changes the algorithm used by the directly affected files. Whether the same library can "
+                     "provide it depends on the installed version (see compatibility).")
+                    + (f" The diagram shows {len(files)} of {len(every)} affected files (directly affected first, then the nearest "
+                       "dependents); every file is listed under the affected files." if truncated else "")}
 
 
 class InvalidTarget(ValueError):

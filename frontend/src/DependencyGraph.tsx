@@ -139,7 +139,8 @@ export default function DependencyGraph({ scanId, initialNode }: { scanId: strin
   }, [layout]);
   const tabStop = focusId && placed.has(focusId) ? focusId
     : selected && placed.has(selected) ? selected
-    : (layout?.nodes.find((n) => n.type === "algorithm") ?? layout?.nodes[0])?.id ?? null;
+    // Default: the topmost algorithm node, so the first ArrowDown/ArrowUp always moves predictably within its column.
+    : (layout?.nodes.filter((n) => n.type === "algorithm").sort((a, b) => a.y - b.y)[0] ?? layout?.nodes[0])?.id ?? null;
 
   const viewport = () => ({ w: box.current?.clientWidth || 1000, h: box.current?.clientHeight || 620 });
   const fit = useCallback(() => {
@@ -393,12 +394,19 @@ function NodeDetails({ node, br, loading, error, onSelect, data }: {
       <Relationships node={node} data={data} onSelect={onSelect} />
       {loading && <p className="dim" role="status">Computing blast radius…</p>}
       {error && <p className="error" role="alert">{error}</p>}
-      {br && br.node.id === node.id && <BlastPanel br={br} onSelect={onSelect} />}
+      {br && br.node.id === node.id && <BlastPanel key={br.node.id} br={br} onSelect={onSelect} />}
     </div>
   );
 }
 
+// Large repositories can put thousands of files in one blast radius: render the first PANEL_MAX of each list until
+// "Show all" is pressed. The counts in the headings are always the full numbers.
+const PANEL_MAX = 150;
+
 function BlastPanel({ br, onSelect }: { br: BlastRadius; onSelect: (id: string) => void }) {
+  const [showAll, setShowAll] = useState(false);
+  const cap = <T,>(xs: T[]) => (showAll ? xs : xs.slice(0, PANEL_MAX));
+  const longest = Math.max(br.direct.length, br.indirect.length, br.findings.length);
   const s = br.summary;
   const total = Object.values(br.severity).reduce((a, b) => a + b, 0) || 1;
   return (
@@ -433,7 +441,7 @@ function BlastPanel({ br, onSelect }: { br: BlastRadius; onSelect: (id: string) 
 
       <h4>Directly affected ({br.direct.length})</h4>
       <p className="fine">{br.meaning.direct}</p>
-      <ul className="impact">{br.direct.map((d) => (
+      <ul className="impact">{cap(br.direct).map((d) => (
         <li key={d.node}>
           <button className="linklike" onClick={() => onSelect(d.node)}>{d.file}</button> <span className="dim">{d.service}</span>
           {d.reasons.map((r, i) => <div key={i} className="reason"><span>{r.reason}</span><EvidenceList items={r.evidence} /></div>)}
@@ -443,7 +451,7 @@ function BlastPanel({ br, onSelect }: { br: BlastRadius; onSelect: (id: string) 
       <h4>Indirectly affected ({br.indirect.length})</h4>
       <p className="fine">{br.meaning.indirect}</p>
       {br.indirect.length === 0 && <p className="dim">None found.</p>}
-      <ul className="impact">{br.indirect.map((d) => (
+      <ul className="impact">{cap(br.indirect).map((d) => (
         <li key={d.node}>
           <button className="linklike" onClick={() => onSelect(d.node)}>{d.file}</button>{" "}
           <Badge tone={d.confidence === "confirmed" ? undefined : "warn"}>{d.confidence}</Badge> <span className="dim">depth {d.depth} · {d.service}</span>
@@ -458,12 +466,15 @@ function BlastPanel({ br, onSelect }: { br: BlastRadius; onSelect: (id: string) 
       {br.findings.length > 0 && (
         <>
           <h4>Related findings ({br.findings.length})</h4>
-          <table className="tbl"><tbody>{br.findings.map((f) => (
+          <table className="tbl"><tbody>{cap(br.findings).map((f) => (
             <tr key={f.id}><td><Band band={f.band ?? null} qmp={f.qmp} /></td>
               <td><a href={`#/finding/${f.fid}`}>{f.fid}</a> <b>{f.algorithm}</b></td>
               <td><code>{where(f.file ?? "", f.line ?? 0)}</code></td></tr>))}</tbody></table>
         </>)}
 
+      {longest > PANEL_MAX && (
+        <p className="fine">{showAll ? `Showing all ${longest} entries.` : `Showing the first ${PANEL_MAX} of each list.`}{" "}
+          <button type="button" className="btn small" onClick={() => setShowAll((v) => !v)}>{showAll ? "Show fewer" : "Show all"}</button></p>)}
       {br.limitations.length > 0 && (
         <div className="callout" role="note"><b>Limitations</b><ul>{br.limitations.map((l) => <li key={l}>{l}</li>)}</ul></div>)}
       <p className="fine"><b>Confirmed:</b> {br.meaning.confirmed} <b>Inferred:</b> {br.meaning.inferred}</p>

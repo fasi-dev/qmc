@@ -3,6 +3,11 @@ import { api, type GraphData, type GraphEdge, type GraphNode, type NodeType, typ
 import { edgePath, layoutGraph } from "./graphLayout";
 import { Badge, where } from "./ui";
 
+// Fixed locale: sizes come from the standards and must read the same everywhere (and match the tests).
+const BYTES = new Intl.NumberFormat("en-US");
+// Long file lists render the first LIST_MAX entries until "Show all" is pressed (nothing is dropped from the data).
+const LIST_MAX = 200;
+
 const ALL_TYPES: Record<NodeType, boolean> = { service: true, file: true, finding: false, algorithm: true, library: true };
 
 /** Static, evidence-only architecture view (current or proposed) rendered with the graph layout. */
@@ -33,6 +38,9 @@ export function MiniGraph({ nodes, edges, label }: { nodes: (GraphNode & { propo
 }
 
 function Track({ t, onTarget, refs }: { t: SimTrack; onTarget: (id: string) => void; refs: Simulation["references"] }) {
+  const [showAll, setShowAll] = useState(false);
+  const cap = <T,>(xs: T[]) => (showAll ? xs : xs.slice(0, LIST_MAX));
+  const longest = Math.max(t.affected.direct_files.length, t.affected.indirect_files.length);
   return (
     <section className="panel track" aria-labelledby={`tr-${t.id}`}>
       <header className="track-head">
@@ -64,7 +72,7 @@ function Track({ t, onTarget, refs }: { t: SimTrack; onTarget: (id: string) => v
             <>
               <p className="fine">{t.target.note}</p>
               <table className="tbl sizes"><caption>{t.target.name} (published parameters)</caption><tbody>
-                {Object.entries(t.target.sizes).map(([k, v]) => <tr key={k}><td>{k}</td><td>{v.toLocaleString()} bytes</td></tr>)}</tbody></table>
+                {Object.entries(t.target.sizes).map(([k, v]) => <tr key={k}><td>{k}</td><td>{BYTES.format(v)} bytes</td></tr>)}</tbody></table>
             </>)}
         </div>
       </div>
@@ -74,18 +82,21 @@ function Track({ t, onTarget, refs }: { t: SimTrack; onTarget: (id: string) => v
       <div className="grid2">
         <div>
           <p className="fine"><b>Change directly ({t.affected.direct_files.length})</b></p>
-          <ul className="plain">{t.affected.direct_files.map((f) => (
+          <ul className="plain">{cap(t.affected.direct_files).map((f) => (
             <li key={f}><a href={`#/graph/${encodeURIComponent(`file:${f}`)}`}>{f}</a></li>))}</ul>
         </div>
         <div>
           <p className="fine"><b>Re-test: depend on them ({t.affected.indirect_confirmed} confirmed, {t.affected.indirect_inferred} inferred)</b></p>
           {t.affected.indirect_files.length === 0 && <p className="dim">None found by static imports.</p>}
-          <ul className="plain">{t.affected.indirect_files.map((x) => (
+          <ul className="plain">{cap(t.affected.indirect_files).map((x) => (
             <li key={x.node}><a href={`#/graph/${encodeURIComponent(x.node)}`}>{x.file}</a> <span className="dim">depth {x.depth}</span>{" "}
               {x.confidence === "inferred" && <Badge tone="warn">inferred</Badge>}
               <span className="fine"> via {x.path.map((p) => p.evidence[0] ? where(p.evidence[0].file, p.evidence[0].line) : p.from.slice(5)).join(" ← ")}</span></li>))}</ul>
         </div>
       </div>
+      {longest > LIST_MAX && (
+        <p className="fine">{showAll ? `Showing all ${longest} entries.` : `Showing the first ${LIST_MAX} of each list.`}{" "}
+          <button type="button" className="btn small" onClick={() => setShowAll((v) => !v)}>{showAll ? "Show fewer" : "Show all"}</button></p>)}
 
       {t.integration_changes.length > 0 && (
         <>
@@ -191,7 +202,7 @@ export default function Simulator({ scanId, initialNode, initialTarget }: { scan
           {sim.tracks.length === 0 && (
             <div className="panel empty-state"><h3>No migration needed for this selection</h3>
               <p className="dim">Its findings are already post-quantum or not quantum-vulnerable.</p></div>)}
-          {sim.tracks.map((t) => <Track key={t.id} t={t} refs={sim.references} onTarget={(id) => setTarget(id)} />)}
+          {sim.tracks.map((t) => <Track key={`${sim.selection.id}:${t.id}`} t={t} refs={sim.references} onTarget={(id) => setTarget(id)} />)}
           {sim.no_migration_needed.length > 0 && (
             <section className="panel"><h3>In scope, no migration needed ({sim.no_migration_needed.length})</h3>
               <ul className="plain">{sim.no_migration_needed.map((x) => (

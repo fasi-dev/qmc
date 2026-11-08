@@ -1,6 +1,7 @@
 """Quantum Migration Copilot - backend entrypoint (FastAPI monolith; modules, not services)."""
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from qmc_scanner import ENGINE_VERSION
 
@@ -19,6 +20,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type", "X-QMC-Scan-Token", "X-QMC-Admin-Token"],
 )
+
+# Graph / blast-radius / simulator JSON for large repositories reaches megabytes and compresses ~20x.
+# Built into Starlette (no new dependency); small responses (< 1 KB) are sent as-is.
+app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 
 
 @app.exception_handler(IngestionError)

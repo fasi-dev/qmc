@@ -118,3 +118,31 @@ def test_statement_and_no_estimates(acme):
 def test_deterministic(acme):
     g, recs = acme
     assert json.dumps(simulate(g, recs, "library:cryptography")) == json.dumps(simulate(g, recs, "library:cryptography"))
+
+
+def test_large_selection_caps_the_diagram_but_not_the_lists(tmp_path):
+    """Release check: on a big repository the architecture DIAGRAM is bounded (it is rendered unculled), while the
+    affected-file lists stay complete and the truncation is stated, never silent."""
+    from app.simulator import ARCH_MAX_FILES
+    files = {"core/kx.py": f"from {PYC}.asymmetric import x25519\nk = x25519.X25519PrivateKey.generate()\n"}
+    files.update({f"app/m{i}.py": "import core.kx\n" for i in range(ARCH_MAX_FILES + 25)})
+    recs, g, *_ = run(tree(tmp_path, files))
+    kem = track(simulate(g, recs, "file:core/kx.py"), "kem")
+    arch = kem["architecture"]
+    assert len(kem["affected"]["indirect_files"]) == ARCH_MAX_FILES + 25                  # nothing dropped from the list
+    assert arch["truncated"] and arch["total_files"] == ARCH_MAX_FILES + 26 and arch["shown_files"] == ARCH_MAX_FILES
+    assert f"{ARCH_MAX_FILES} of {ARCH_MAX_FILES + 26}" in arch["note"]
+    for view in (arch["current"], arch["proposed"]):
+        ids = {n["id"] for n in view["nodes"]}
+        assert sum(n["type"] == "file" for n in view["nodes"]) == ARCH_MAX_FILES
+        assert "file:core/kx.py" in ids                                                    # directly affected file kept first
+        assert all(e["source"] in ids and e["target"] in ids for e in view["edges"])       # no dangling edges
+
+
+def test_small_selection_diagram_is_complete(acme):
+    g, recs = acme
+    arch = track(simulate(g, recs, "algorithm:ECDSA"), "sig")["architecture"]
+    assert not arch["truncated"] and arch["shown_files"] == arch["total_files"]
+    for view in (arch["current"], arch["proposed"]):
+        ids = {n["id"] for n in view["nodes"]}
+        assert all(e["source"] in ids and e["target"] in ids for e in view["edges"])

@@ -80,8 +80,8 @@ WEAK_SUITE_RULES = {"CFG-NGINX-CIPHER-004"}
 LEVEL_RULES = [
     ("not_ready_blockers", "Not ready: critical blockers",
      "At least one blocker: quantum-vulnerable key establishment protecting long-lived sensitive, internet-exposed data "
-     "(elevated harvest-now-decrypt-later), or classical cryptography that NIST/IETF already disallow (DES/3DES/RC4/"
-     "Blowfish, TLS 1.0/1.1, weak TLS cipher suites, SHA-1-signed certificates)."),
+     "(elevated harvest-now-decrypt-later), or classical cryptography that NIST/IETF disallow or never approved (DES/3DES/"
+     "RC4/Blowfish, TLS 1.0/1.1, weak TLS cipher suites, SHA-1-signed certificates)."),
     ("not_ready", "Not ready",
      "Quantum-vulnerable public-key cryptography (key establishment, signatures, certificates or keys of undetermined "
      "role) is in use and no standardized PQC algorithm was found outside test/lab/demo/example paths."),

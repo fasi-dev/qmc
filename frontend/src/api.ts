@@ -160,7 +160,7 @@ export type SimTrack = {
                          call_sites: { fid: string; file: string; line: number; text: string; api: string | null }[] }[];
   compatibility: string[]; libraries: { library: string; pqc_support: string | null; references: string[]; status: string }[];
   references: string[];
-  architecture: { current: { nodes: GraphNode[]; edges: GraphEdge[] }; proposed: { nodes: (GraphNode & { proposed?: boolean })[]; edges: GraphEdge[] }; note: string };
+  architecture: { total_files?: number; shown_files?: number; truncated?: boolean; current: { nodes: GraphNode[]; edges: GraphEdge[] }; proposed: { nodes: (GraphNode & { proposed?: boolean })[]; edges: GraphEdge[] }; note: string };
   limitations: string[];
 };
 export type Simulation = {
