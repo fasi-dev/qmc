@@ -68,6 +68,29 @@ HONESTY = [
 ]
 
 
+CONTEXT_CAVEATS = {
+    "jose": ("JWT/JOSE: ML-DSA identifiers (ML-DSA-44/65/87) are standardized in RFC 9964 (May 2026), but every JWT library "
+             "and every verifier must support them before signers switch; ML-DSA signatures (2,420-4,627 bytes) make tokens "
+             "much larger than ES256/RS256 (headers, cookies, URL limits)."),
+    "tls": ("TLS: the key-exchange migration is normally a TLS library and configuration upgrade to a hybrid group "
+            "(e.g. X25519MLKEM768) on both endpoints, not an application code change. Check client support before enforcing."),
+    "x509": ("X.509: certificate migration is gated by CA, client and HSM support for ML-DSA certificates and by larger chains; "
+             "plan it with the PKI owner rather than as a code change."),
+}
+
+
+def context_caveats(f: dict, role: str | None) -> list[str]:
+    """Extra, evidence-keyed caveats (deterministic: from rule id, context and role only)."""
+    out = []
+    if f["rule_id"].startswith("CFG-X509"):
+        out.append(CONTEXT_CAVEATS["x509"])
+    elif role == "signature" and (f["context"] == "authentication" or "JWT" in f["rule_id"] or "JOSE" in f["rule_id"]):
+        out.append(CONTEXT_CAVEATS["jose"])
+    if role == "key-establishment" and (f["context"] == "tls-termination" or f["rule_id"].startswith("CFG-")):
+        out.append(CONTEXT_CAVEATS["tls"])
+    return out
+
+
 def pick_rule(f: dict, role: str | None) -> tuple[str, str | None]:
     """(rule_id, note). Deterministic; undetermined roles go to R-12 (human review)."""
     alg, prim = f["algorithm"], f["primitive"]
@@ -117,6 +140,8 @@ def plan_for(f: dict, risk: dict | None) -> dict | None:
         out.update(KE_TEXT)
     elif kind == "SIG":
         out.update(SIG_TEXT)
+    if kind in ("KE", "SIG"):
+        out["caveats"] = [*out["caveats"], *context_caveats(f, role)]
     elif rid == "R-12":
         out.update(direction="Manual review: no candidate emitted", why="The system does not know: it never invents a migration direction.",
                    caveats=[], interoperability=None, steps=["Route to the security team with the attached evidence."], human_review=True)
