@@ -27,7 +27,7 @@ def test_findings_match_schema_exactly(scan):
         assert tuple(f) == FINDING_KEYS and tuple(f["metadata"]) == METADATA_KEYS
         validate_finding(f)
         assert re.fullmatch(r"CRYPTO-\d{3,}", f["id"]) and f["scan_id"] == "11111111-1111-4111-8111-111111111111"
-        assert f["engine_version"] == "0.3.0" and re.fullmatch(r"\d+\.\d+\.\d+", f["rule_version"])
+        assert f["engine_version"] == "0.4.0" and re.fullmatch(r"\d+\.\d+\.\d+", f["rule_version"])
         assert isinstance(f["line_start"], int) and isinstance(f["confidence"], float) and isinstance(f["quantum_vulnerable"], bool)
         assert f["metadata"]["in_dead_code"] is False
     json.dumps(res.to_dict())   # fully JSON-serialisable
@@ -273,3 +273,15 @@ def test_template_pathological_inputs_finish_quickly(scan, name, src):
     t = time.time()
     res = scan({"a.js": src})
     assert time.time() - t < 15 and res.status == "complete" and res.files_skipped == [], name
+
+
+@pytest.mark.parametrize("name,src", [
+    ("unterminated block comment flood", "{" + "/* " * 300_000),
+    ("comma + whitespace flood", "[" + ("1," + " " * 5000) * 150),
+    ("tsconfig comment flood", '{"compilerOptions": {' + "/* " * 300_000),
+])
+def test_jsonc_fallback_is_linear(scan, name, src):
+    """Regression: the JSONC comment regex was quadratic on unterminated '/*' (8.75 s for 60 KB)."""
+    t = time.time()
+    res = scan({"tsconfig.json": src, "x.json": src})
+    assert time.time() - t < 10 and res.status == "complete", name

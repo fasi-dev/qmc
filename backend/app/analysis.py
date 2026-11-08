@@ -4,11 +4,14 @@ Order matches the demo: ingestion (already done) -> scan -> risk scoring -> pers
 """
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import logging
 import shutil
+import threading
 import time
+from collections import OrderedDict
 import uuid
 import zipfile
 from datetime import datetime, timezone
@@ -21,6 +24,8 @@ from sqlalchemy.orm import Session
 from .access import can_access
 from .config import Settings
 from .db import FindingRow, ScanRow
+from .graph import Graph, build_graph, finding_record
+from .readiness import assess
 from .ingestion import IngestionError, load_manifest, purge_tree
 from .ingestion.pipeline import TREE_DIR, workspace_path
 from .migration import CRYPTO_AGILITY, HONESTY, plan_for
@@ -170,6 +175,8 @@ def _analyze_claimed(db: Session, row: ScanRow, scan_id: str, s: Settings, as_of
             hndl=bool(r and r["hndl"]["flag"]), rank=rank_of[f["id"]], data=f, risk=r,
             snippet=_snippet(cache[f["file"]], f["line_start"], f["line_end"]) if cache[f["file"]] else None))
     row.status = "analyzed"
+    row.graph = {"version": 1, "imports": res.imports, "imports_truncated": res.imports_truncated,
+                 "code_files": len(res.code_files), "notes": res.import_notes}
     row.analysis = {"engine_version": res.engine_version, "scan_status": res.status, "as_of": res.as_of,
                     "files_scanned": res.files_scanned, "files_skipped": res.files_skipped,
                     "skipped_directories": res.skipped_directories, "rule_hits": res.rule_hits,
@@ -245,8 +252,106 @@ def summarize(db: Session, scan_id: str) -> dict:
         "services": sorted(svc.values(), key=lambda d: (-d["critical"], -d["quantum_vulnerable"], d["service"])),
         "top_findings": [_card(r) for r in top],
         "scan_warnings": scan_warnings(scan.analysis),
+        "dependency_graph": graph_overview(db, scan_id) if scan.status == "analyzed" else {"available": False},
+        "readiness": readiness_overview(db, scan_id) if scan.status == "analyzed" else {"available": False},
         "qmp_label": LABEL, "limitations": LIMITATIONS,
     }
+
+
+# ------------------------------------------------------------------ dependency graph (cached per scan state)
+_GRAPH_CACHE: "OrderedDict[str, GraphContext]" = OrderedDict()
+_GRAPH_CACHE_SIZE = 16
+_graph_lock = threading.Lock()
+
+
+class GraphContext:
+    """Everything derived from one scan state: graph, finding records, exclusions. Read-only once built."""
+
+    def __init__(self, graph: Graph, records: list[dict], excluded: dict, analysis: dict, services: list[dict], repo: str):
+        self.graph, self.records, self.excluded = graph, records, excluded
+        self.analysis, self.services, self.repo = analysis, services, repo
+        self.derived: dict[str, object] = {}          # memoized per-context results (readiness), guarded by _graph_lock
+
+
+def graph_context(db: Session, scan_id: str) -> GraphContext:
+    """Cached graph inputs for an analyzed scan. The key covers everything they depend on (analysis run and
+    suppression state), so a suppression change produces a fresh context instead of a stale one."""
+    scan = db.get(ScanRow, scan_id)
+    if scan is None:
+        raise IngestionError("scan_not_found", "Scan not found.", 404)
+    if scan.status != "analyzed":
+        raise IngestionError("not_analyzed", "Analyze the scan before viewing its dependency graph.", 409)
+    rows = _rows(db, scan_id)
+    state = json.dumps([scan_id, (scan.analysis or {}).get("analyzed_at"), [(r.fid, r.suppressed) for r in rows]])
+    key = hashlib.sha256(state.encode()).hexdigest()
+    with _graph_lock:
+        if key in _GRAPH_CACHE:
+            _GRAPH_CACHE.move_to_end(key)
+            return _GRAPH_CACHE[key]
+    t0 = time.monotonic()
+    live = [r for r in rows if not r.suppressed and not r.comment_only]
+    recs = [finding_record(r.data, r.risk, plan_for(r.data, r.risk)) for r in live]
+    stored = scan.graph if isinstance(scan.graph, dict) else None
+    excluded = {"suppressed": sum(r.suppressed for r in rows), "comment_only": sum(r.comment_only and not r.suppressed for r in rows)}
+    services = scan.manifest.get("services", [])
+    g = build_graph(recs, stored.get("imports") if stored else None, services, scan.repo_name,
+                    imports_truncated=bool(stored and stored.get("imports_truncated")), excluded=excluded,
+                    notes=(stored or {}).get("notes") or [])
+    log.info("graph built for scan %s: %d nodes, %d edges in %.2fs", scan_id, g.stats["nodes"], g.stats["edges"], time.monotonic() - t0)
+    ctx = GraphContext(g, recs, excluded, dict(scan.analysis or {}), services, scan.repo_name)
+    with _graph_lock:
+        _GRAPH_CACHE[key] = ctx
+        while len(_GRAPH_CACHE) > _GRAPH_CACHE_SIZE:
+            _GRAPH_CACHE.popitem(last=False)
+    return ctx
+
+
+def dependency_graph(db: Session, scan_id: str) -> Graph:
+    return graph_context(db, scan_id).graph
+
+
+def readiness_assessment(db: Session, scan_id: str) -> dict:
+    ctx = graph_context(db, scan_id)
+    with _graph_lock:
+        cached = ctx.derived.get("readiness")
+    if cached is None:
+        cached = assess(ctx.records, ctx.graph, analysis=ctx.analysis, services=ctx.services, excluded=ctx.excluded)
+        with _graph_lock:
+            ctx.derived["readiness"] = cached
+    return cached  # type: ignore[return-value]
+
+
+def migration_simulation(db: Session, scan_id: str, node: str, target: str | None) -> dict:
+    from .graph import NodeNotFound, NotSelectable
+    from .simulator import InvalidTarget, simulate
+    ctx = graph_context(db, scan_id)
+    try:
+        return simulate(ctx.graph, ctx.records, node, target)
+    except NodeNotFound:
+        raise IngestionError("node_not_found", "No such node in this scan's dependency graph.", 404)
+    except NotSelectable:
+        raise IngestionError("node_not_selectable", "Select an algorithm, library, finding or file to simulate a migration.", 422)
+    except InvalidTarget:
+        raise IngestionError("invalid_target", "That migration target is not an option for the selected cryptography.", 422)
+
+
+def readiness_overview(db: Session, scan_id: str) -> dict:
+    try:
+        a = readiness_assessment(db, scan_id)
+    except IngestionError:
+        return {"available": False}
+    return {"available": True, "level": a["level"]["id"], "label": a["level"]["label"], "blockers": len(a["blockers"]),
+            "top_recommendation": a["recommendations"][0]["title"] if a["recommendations"] else None}
+
+
+def graph_overview(db: Session, scan_id: str) -> dict:
+    """Small summary block for the dashboard; never breaks the summary if the graph cannot be built."""
+    try:
+        st = dependency_graph(db, scan_id).stats
+    except IngestionError:
+        return {"available": False}
+    return {"available": True, "imports_available": st["imports_available"], "crypto_files": st["crypto_files"],
+            "dependent_files": st["dependent_files"], "import_edges": st["import_edges"], "inferred_edges": st["inferred_edges"]}
 
 
 def _card(r: FindingRow) -> dict:

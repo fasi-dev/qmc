@@ -50,3 +50,29 @@ Behaviour changes in this release that need a deliberate step:
 
 `GET /api/health` -> `{"status": "ok", "engine_version": "..."}`. The backend image has a Docker `HEALTHCHECK`;
 Compose waits for it before starting the frontend.
+
+## Feature branch `feature/dependency-graph` (dependency graph, PQC readiness, migration simulator)
+
+* **Database:** one additive column, `scans.graph` (JSON, nullable), created automatically at startup by
+  `upgrade_schema`. Nothing is rewritten or deleted. Scans analyzed before the upgrade still open; their graph shows
+  direct usage only (with a "re-scan" note) until the repository is scanned again.
+* **New endpoints** (`/graph`, `/graph/blast-radius`, `/readiness`, `/simulate`) use the existing scan-token access
+  control. No new environment variables, no new dependencies.
+* **Safe procedure on Render:** (1) let CI pass on the branch (scanner, backend, frontend, Docker); (2) optionally back
+  up the backend disk / `qmc.db` if a persistent disk is attached; (3) deploy the **backend first** (the new frontend
+  needs the new endpoints; the old frontend keeps working against the new backend because existing routes are
+  unchanged); (4) deploy the frontend; (5) smoke test: health, Load Acme demo, Dependency Graph -> select ECDSA,
+  PQC Readiness, Migration Simulator, Download report. Roll back by redeploying the previous commit; the added
+  column is ignored by older code.
+* **Response compression:** the backend now gzips responses of 1 KB and more (`GZipMiddleware`, part of
+  FastAPI/Starlette, no new dependency). Browsers decompress transparently; nothing to configure on Render.
+* **Release check before staging** (run where dependencies can be installed; see README "Tests"):
+
+      pip install -r backend/requirements-dev.txt -e scanner
+      (cd scanner && pytest -q && python -m eval.evaluate)
+      (cd backend && pytest -q)
+      (cd frontend && npm ci && npm run build && npm test)        # Node.js 22
+      docker build -f backend/Dockerfile -t qmc-backend . && docker build -t qmc-frontend frontend
+
+  Then the smoke test above against staging. The frontend image builds on `node:20-slim`: the build tools support
+  Node 20, and the test-only packages (jsdom, undici) that need Node 22 only print an engine warning during `npm ci`.

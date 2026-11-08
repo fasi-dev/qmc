@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from . import analysis
 from .db import FindingRow, ScanRow
 from .ingestion import IngestionError
+from .graph import blast_radius
 from .risk import LABEL
 
 
@@ -76,4 +77,70 @@ def build_report(db: Session, scan_id: str) -> str:
           f"- Archive: {scan.original_filename} ({scan.manifest.get('archive_type')}); files scanned: {an.get('files_scanned')}",
           f"- Redacted secret values (not stored): {scan.manifest.get('stats', {}).get('redaction_count')}", "", "| Rule | Version | Hits |", "|---|---|---|"]
     L += [f"| {rid} | {an.get('rule_versions', {}).get(rid)} | {n} |" for rid, n in an.get("rule_hits", {}).items()]
+    L += _blast_radius_section(db, scan_id)
+    L += _readiness_section(db, scan_id)
     return "\n".join(L) + "\n"
+
+
+def _readiness_section(db: Session, scan_id: str) -> list[str]:
+    """Section 9: PQC readiness (level from explicit rules; every blocker and recommendation cites file:line)."""
+    a = analysis.readiness_assessment(db, scan_id)
+    L = ["", "## 9. PQC readiness assessment", "", f"**{a['level']['label']}.** {a['level']['rule']}", "",
+         f"*{a['statement']}*", ""]
+    if a["blockers"]:
+        L += ["### Critical blockers", ""]
+        for b in a["blockers"]:
+            locs = ", ".join(f"`{e['file']}:{e['line']}`" for e in b["evidence"][:8]) + (" ..." if len(b["evidence"]) > 8 else "")
+            L.append(f"- **{_esc(b['title'])}** ({', '.join(b['services'])}): {_esc(b['why'])} Evidence: {locs}")
+        L.append("")
+    L += ["### Categories", "", "| Category | Status | Usages | Files | Components |", "|---|---|---|---|---|"]
+    for c in a["categories"]:
+        L.append(f"| {_esc(c['title'])} | {c['status']} | {c['count']} | {c['files']} | {', '.join(c['services']) or '-'} |")
+    L += ["", "### Prioritized recommendations", ""]
+    for r in a["recommendations"]:
+        locs = ", ".join(f"`{e['file']}:{e['line']}`" for e in r["evidence"][:5])
+        more = f" (+{r['evidence_total'] - 5} more)" if r["evidence_total"] > 5 else ""
+        refs = ", ".join(a["references"][x]["title"].split(":")[0] for x in r["references"][:4])
+        L.append(f"{r['priority']}. **{_esc(r['title'])}**: {_esc(r['action'])}" + (f" Evidence: {locs}{more}." if locs else "")
+                 + (f" References: {refs}." if refs else ""))
+    L += ["", "### Libraries", "", "| Library | Findings | PQC support known to QMC |", "|---|---|---|"]
+    for lib in a["libraries"]:
+        L.append(f"| {_esc(lib['library'])} | {lib['findings']} | {_esc(lib['pqc_support'] or 'not verified')} |")
+    L += ["", "Library versions are not determined by QMC: verify the versions you deploy.", "", "### Not analyzed", ""]
+    L += [f"- {x}" for x in a["not_analyzed"]] + [""] + [f"- {x}" for x in a["limitations"]]
+    used = sorted({x for c in a["categories"] for x in c["references"]} | {x for r in a["recommendations"] for x in r["references"]})
+    L += ["", "### References", ""] + [f"- [{a['references'][x]['title']}]({a['references'][x]['url']})" for x in used] + [""]
+    return L
+
+
+def _blast_radius_section(db: Session, scan_id: str) -> list[str]:
+    """Section 8: evidence-backed blast radius per quantum-vulnerable or classical-hygiene algorithm."""
+    g = analysis.dependency_graph(db, scan_id)
+    algs = sorted((n for n in g.nodes.values() if n["type"] == "algorithm"
+                   and (n["quantum_vulnerable"] or n.get("max_band") in ("Critical", "High", "Review"))),
+                  key=lambda n: (["Critical", "High", "Review", "Informational"].index(n["max_band"]) if n.get("max_band") in
+                                 ("Critical", "High", "Review", "Informational") else 9, n["label"]))
+    L = ["", "## 8. Cryptographic dependency blast radius", "",
+         "*Direct* files contain the usage. *Indirect* files import a directly affected file (transitively): they depend on "
+         "that code, but static analysis does not prove the cryptographic path is called. *Confirmed* paths use only "
+         "uniquely resolved imports; *inferred* paths include an ambiguous or wildcard import.", ""]
+    if not algs:
+        return L + ["No quantum-vulnerable or flagged algorithm was found.", ""]
+    L += ["| Algorithm | Findings | Highest band | Direct files | Indirect (confirmed / inferred) | Components | Migration rules |",
+          "|---|---|---|---|---|---|---|"]
+    details: list[str] = []
+    for n in algs:
+        br = blast_radius(g, n["id"])
+        sm = br["summary"]
+        rules = ", ".join(sorted({str(r["rule_id"]) for r in br["migration"]["by_rule"] if r["rule_id"]})) or "-"
+        L.append(f"| {_esc(n['label'])} | {sm['findings']} | {n.get('max_band') or '-'} | {sm['direct_files']} | "
+                 f"{sm['indirect_confirmed']} / {sm['indirect_inferred']} | {sm['components']} | {rules} |")
+        if br["indirect"]:
+            details.append(f"- **{_esc(n['label'])}**: " + "; ".join(
+                f"`{x['file']}` (depth {x['depth']}, {x['confidence']}, via "
+                + " <- ".join(f"`{p['evidence'][0]['file']}:{p['evidence'][0]['line']}`" for p in x["path"] if p["evidence"]) + ")"
+                for x in br["indirect"][:10]) + (f"; ... {len(br['indirect']) - 10} more" if len(br["indirect"]) > 10 else ""))
+    if details:
+        L += ["", "Indirect dependents (import evidence, file:line of each import):", ""] + details
+    L += ["", "Graph limitations:", ""] + [f"- {x}" for x in g.limitations] + [""]
+    return L

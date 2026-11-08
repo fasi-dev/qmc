@@ -18,9 +18,23 @@ export default function Dashboard({ s }: { s: Summary }) {
         <button className="btn primary" onClick={() => { setDlError(null); api.downloadReport(s.scan.id).catch((e: Error) => setDlError(e.message)); }}>
           Download report (Markdown)</button>
         <a className="btn" href="#/planner">Migration planner</a>
+        <a className="btn" href="#/graph">Dependency graph</a>
         <a className="btn" href="#/inventory">Crypto inventory</a>
       </div>
       {dlError && <p className="error" role="alert">{dlError}</p>}
+      {s.readiness?.available && (
+        <section className={`panel level level-${({ not_ready_blockers: "critical", not_ready: "high", in_transition: "review" } as Record<string, string>)[s.readiness.level ?? ""] ?? "info"}`}
+                 aria-labelledby="rd-h">
+          <p className="eyebrow">PQC readiness</p>
+          <h3 id="rd-h">{s.readiness.label}</h3>
+          <p>{s.readiness.blockers ? `${s.readiness.blockers} critical blocker(s). ` : ""}
+            {s.readiness.top_recommendation && <>First recommendation: <b>{s.readiness.top_recommendation}</b>.</>}</p>
+          <div className="row">
+            <a className="btn primary" href="#/readiness">Open readiness assessment</a>
+            <a className="btn" href="#/simulate">Simulate a migration</a>
+            <a className="btn" href="#/graph">Dependency graph</a>
+          </div>
+        </section>)}
       {warnings.length > 0 && (
         <div className="callout warn" role="alert">
           <b>Scan may be incomplete.</b>
@@ -90,6 +104,11 @@ export default function Dashboard({ s }: { s: Summary }) {
         {t.comment_or_doc_mentions} comment/doc mentions and {t.test_path} test-path finding(s) are hidden by default (not deleted) ·{" "}
         {t.suppressed} suppressed. <a href="#/inventory">Open the full inventory →</a>
       </p>
+      {s.dependency_graph?.available && (
+        <p className="fine">Dependency graph: {s.dependency_graph.crypto_files} file(s) use cryptography and{" "}
+          {s.dependency_graph.dependent_files} more import them.{" "}
+          {s.dependency_graph.imports_available ? "" : "Import relationships are unavailable for this scan (re-scan to compute them). "}
+          <a href="#/graph">Explore the blast radius →</a></p>)}
       <p className="fine">{s.qmp_label}</p>
     </div>
   );

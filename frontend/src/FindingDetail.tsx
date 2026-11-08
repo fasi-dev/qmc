@@ -39,6 +39,10 @@ export default function FindingDetail({ scanId, fid }: { scanId: string; fid: st
         </div>
       </div>
 
+      <div className="row">
+        <a className="btn" href={`#/graph/${encodeURIComponent(`finding:${f.id}`)}`}>Show in dependency graph</a>
+        {!f.metadata.comment_only && <a className="btn" href={`#/simulate/${encodeURIComponent(`finding:${f.id}`)}`}>Simulate migration</a>}
+      </div>
       {r?.hndl.flag && <div className="callout hndl" role="note">{r.hndl.text}</div>}
       {d.suppression && <div className="callout">Marked false positive by <b>{d.suppression.author}</b>: {d.suppression.reason}. Excluded from default views and scores; kept in the record.</div>}
 

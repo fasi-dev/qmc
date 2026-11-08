@@ -8,7 +8,10 @@ export default async function setup() {
   const py = process.env.QMC_PYTHON ?? (existsSync("../.venv/bin/python") ? "../.venv/bin/python" : "python3");
   const data = mkdtempSync(join(tmpdir(), "qmc-ui-"));
   const proc = spawn(py, ["-m", "uvicorn", "app.main:app", "--port", "8031"], {
-    cwd: "../backend", env: { ...process.env, QMC_DATA_DIR: data }, stdio: "ignore",
+    cwd: "../backend",
+    // Test files run in parallel and each loads the demo; the production gate (2 concurrent analyses, rejects with 503)
+    // would make that racy, so the throwaway test backend allows more. The gate itself is covered by backend tests.
+    env: { ...process.env, QMC_DATA_DIR: data, QMC_MAX_CONCURRENT_ANALYSES: "8" }, stdio: "ignore",
   });
   for (let i = 0; i < 60; i++) {
     try { if ((await fetch("http://127.0.0.1:8031/api/health")).ok) break; } catch { /* not up yet */ }

@@ -86,8 +86,23 @@ def _compose(text: str):
         return None
 
 
+# An unterminated block comment runs to end of input (\Z): one pass, linear even for "/*/*/*..." floods.
+_JSONC_TOKEN = re.compile(r'"(?:\\.|[^"\\\n])*"|//[^\n]*|/\*[\s\S]*?(?:\*/|\Z)|,(?=[ \t\r\n]*[}\]])')
+
+
+def strip_jsonc(text: str) -> str:
+    """JSON-with-comments (tsconfig.json, VS Code settings) -> JSON. Comments and trailing commas become spaces, so
+    offsets and line numbers are unchanged. Strings are left intact (a '//' inside a string is not a comment)."""
+    def repl(m: re.Match) -> str:
+        t = m.group(0)
+        return t if t.startswith('"') else re.sub(r"[^\n]", " ", t)
+    return _JSONC_TOKEN.sub(repl, text)
+
+
 def scan_structured(text: str, rules: list[Rule]) -> tuple[list[RawMatch], str | None]:
     docs = _compose(text)
+    if docs is None and ("//" in text or "/*" in text or "," in text):
+        docs = _compose(strip_jsonc(text))     # JSONC (comments / trailing commas) is common for config JSON
     if docs is None:
         return [], "parse_error"
     srules = [r for r in rules if r.match_type == "structured"]

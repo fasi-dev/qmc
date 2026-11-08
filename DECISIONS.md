@@ -177,3 +177,32 @@ Spec issues found during the readiness check, and the default resolution used.
     Trade-off: whoever holds the token (e.g. from this browser's localStorage) has full access to that scan.
 49. **Abuse limits are in-process** (rate limit, analysis gate, retention, capacity). Correct for one instance;
     a multi-instance deployment needs a shared store.
+50. **Dependency graph = detections + static imports only** (`docs/DEPENDENCY_GRAPH.md`). No call graph, no
+    manifest/package graph, no data assets: there is no reliable evidence source for them yet, so they are not shown.
+    Indirect impact means "imports affected code", never "calls it".
+51. **Confirmed vs inferred imports.** Unique static resolution = confirmed. Several candidates, a bare Python name
+    resolved outside the importer's directory (depends on `sys.path`), or a Java wildcard import = inferred.
+52. **No graph library.** Plain SVG + deterministic layered layout instead of React Flow/Cytoscape/NetworkX (spec 08):
+    avoids new dependencies; the layout is unit-tested for determinism and large inputs.
+53. **Storage.** Import records in `scans.graph` (JSON, nullable, additive upgrade); the graph itself is derived and
+    cached per (analysis run, suppression state). Scans analyzed earlier show direct usage only, and say so.
+54. **Acme fixture** gained three import-only files (`src/api/routes.py`, `src/api/app.py`, `src/payments/refunds.py`)
+    so the demo has real indirect relationships; findings are unchanged, `files_scanned` golden updated (python 6 -> 9).
+55. **PQC readiness has no percentage.** An ordinal level from four explicit rules (docs/PQC_READINESS.md); the best
+    outcome is "no quantum-vulnerable usage detected", never "quantum-safe". Lab/demo/example/sample/poc paths count as
+    non-production for PQC adoption.
+56. **Library PQC support is a sourced table, not a guess.** Only entries verified against primary sources (pyca
+    changelog, JEP 496/497, Bouncy Castle 1.79, Node.js 24.7.0, OpenSSL 3.5, OpenSSH) are listed; others are "not
+    verified". Installed versions are never inferred.
+57. **Simulator targets are a fixed, standards-based list per track**; hybrid X25519MLKEM768 is the default for key
+    establishment during the transition, ML-DSA-65 for signatures; undetermined roles get no target. Sizes are published
+    parameter values. Each track's indirect impact is computed from that track's own direct files.
+58. **Two quadratic regexes removed** (JSONC comments, JS import clause), both introduced on this branch and caught in
+    review; regression tests with 1 MB adversarial inputs.
+59. **Release-readiness pass: bounded payloads, not truncated data.** Responses are gzip-compressed (built-in
+    middleware). The simulator's architecture diagram is capped at 40 files (it is rendered unculled) and says so;
+    simulation of a 10k-file repo dropped from 6.7 s / 63 MB to 0.3 s / 10 MB (a list-membership test was quadratic).
+    UI lists render the first 150-200 entries behind "Show all"; data and counts stay complete.
+60. **Test backend for UI tests allows 8 concurrent analyses.** UI test files run in parallel and each loads the demo;
+    with the production default (2, rejecting with 503) the third load could fail at random. The gate itself keeps
+    its own backend tests.
