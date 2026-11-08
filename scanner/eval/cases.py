@@ -53,7 +53,7 @@ CASES: list[dict] = [
         "    return etag + mac\n"),
         expected=[(3, "MD5"), (4, "HMAC")]),
     dict(id="py-bom-windows-file", kind="realistic", file="win/keys.py", src=(
-        "﻿" + f"from {PYC}.asymmetric import ec\n"
+        "\ufeff" + f"from {PYC}.asymmetric import ec\n"
         "key = ec.generate_private_key(ec.SECP384R1())\n"
         "sig = key.sign(msg, ec.ECDSA(hashes.SHA384()))\n"),
         expected=[(2, "ECDSA"), (3, "ECDSA")]),
