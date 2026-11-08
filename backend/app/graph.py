@@ -163,8 +163,12 @@ def build_graph(findings: list[dict], imports: list[dict] | None, services: list
                 if conf == "inferred":
                     ambiguous += 1
                 internal += 1
-                basis = ("import statically resolved to this file" if conf == "confirmed" else
-                         f"{r['resolution']} import: {len(r['targets'])} candidate file(s); not proven")
+                if r["kind"] == "java-same-package":
+                    basis = ("same-package type reference (Java needs no import)" if conf == "confirmed" else
+                             f"same-package type reference with {len(r['targets'])} candidate files; not proven")
+                else:
+                    basis = ("import statically resolved to this file" if conf == "confirmed" else
+                             f"{r['resolution']} import: {len(r['targets'])} candidate file(s); not proven")
                 for t in r["targets"]:
                     file_edges.append((r["file"], t, conf, {**ev, "basis": basis}))
             elif r["resolution"] == "unresolved":

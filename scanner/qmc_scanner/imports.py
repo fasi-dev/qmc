@@ -116,6 +116,101 @@ def java_imports(lx: Lexed, rel: str) -> list[RawImport]:
     return out
 
 
+_JAVA_PACKAGE = re.compile(r"(?m)^[ \t]*package[ \t]+([A-Za-z_][\w]*(?:\.[A-Za-z_][\w]*)*)[ \t]*;")
+_JAVA_TYPE_NAME = re.compile(r"\b[A-Z][A-Za-z0-9_]*\b")
+MAX_JAVA_IDENTIFIERS = 5_000
+
+
+@dataclass
+class JavaUnit:
+    """What the same-package pass needs from one Java file: its package and the type-like identifiers it uses in code
+    (comments and string literals are masked by the lexer, so mentions there do not count)."""
+    file: str
+    package: str
+    identifiers: dict[str, tuple[int, str]]   # name -> (first line, evidence)
+
+
+def java_unit(lx: Lexed, rel: str) -> JavaUnit:
+    pm = _JAVA_PACKAGE.search(lx.code)
+    pkg = pm.group(1) if pm and lx.mask[pm.start(1)] == 0 else ""
+    lines = lx.code.split("\n")
+    ids: dict[str, tuple[int, str]] = {}
+    for m in _JAVA_TYPE_NAME.finditer(lx.code):
+        if lx.mask[m.start()] != 0 or m.group(0) in ids:
+            continue
+        line = lx.line_of(m.start())
+        if lines[line - 1].lstrip().startswith(("import ", "package ")):
+            continue
+        ids[m.group(0)] = (line, "")
+        if len(ids) >= MAX_JAVA_IDENTIFIERS:
+            break
+    return JavaUnit(rel, pkg, {k: (ln, _evidence(lines[ln - 1], rel)) for k, (ln, _) in ids.items()})
+
+
+def same_package_records(units: list[JavaUnit], records: list[dict]) -> list[dict]:
+    """Java resolves simple type names of the same package without any import. For each file, a class of its own
+    package whose (top-level, file-named) type is used in code becomes a dependency, unless a single-type import of
+    the same simple name shadows it. Several files declaring the same package+class (e.g. main and test roots) make
+    the edge ambiguous (inferred)."""
+    by_pkg: dict[str, dict[str, list[str]]] = {}
+    for u in units:
+        cls = posixpath.basename(u.file)[:-5]
+        group = u.package or f"<default>:{posixpath.dirname(u.file)}"
+        by_pkg.setdefault(group, {}).setdefault(cls, []).append(u.file)
+    explicit: dict[str, set[str]] = {}
+    for r in records:
+        if r["kind"] == "java":
+            explicit.setdefault(r["file"], set()).add(r["spec"].rsplit(".", 1)[-1])
+    out = []
+    for u in sorted(units, key=lambda x: x.file):
+        own = posixpath.basename(u.file)[:-5]
+        group = u.package or f"<default>:{posixpath.dirname(u.file)}"
+        for cls, files in sorted(by_pkg.get(group, {}).items()):
+            if cls == own or cls not in u.identifiers or cls in explicit.get(u.file, set()):
+                continue
+            targets = sorted(f for f in files if f != u.file)
+            line, ev = u.identifiers[cls]
+            out.append({"file": u.file, "line": line, "kind": "java-same-package",
+                        "spec": f"{u.package}.{cls}" if u.package else cls, "names": [cls], "targets": targets,
+                        "resolution": "resolved" if len(targets) == 1 else "ambiguous", "external": None,
+                        "crypto_library": None, "evidence": ev})
+    return out
+
+
+# ------------------------------------------------------------------ TS / JS path mapping (tsconfig.json / jsconfig.json)
+@dataclass
+class TsConfig:
+    dir: str                                  # directory of the tsconfig file ("" = repository root)
+    base: str                                 # directory that `paths` targets are relative to
+    base_url: str | None                      # baseUrl directory if set (non-relative imports resolve from it)
+    paths: list[tuple[str, list[str]]]        # (pattern, targets) in TypeScript's matching priority
+
+
+def parse_tsconfig(rel: str, text: str) -> TsConfig | None:
+    """compilerOptions.baseUrl / paths only. `extends` is not followed (reported as a limitation in the docs)."""
+    import json
+    from .confscan import strip_jsonc
+    try:
+        doc = json.loads(strip_jsonc(text))
+    except (ValueError, RecursionError):
+        return None
+    co = doc.get("compilerOptions") if isinstance(doc, dict) else None
+    if not isinstance(co, dict):
+        return None
+    d = posixpath.dirname(rel)
+    base_url = co.get("baseUrl")
+    base_dir = posixpath.normpath(posixpath.join(d, base_url)) if isinstance(base_url, str) else None
+    if base_dir == ".":
+        base_dir = ""
+    raw = co.get("paths") if isinstance(co.get("paths"), dict) else {}
+    paths = [(k, [t for t in v if isinstance(t, str)]) for k, v in raw.items() if isinstance(k, str) and isinstance(v, list)]
+    # TypeScript: exact patterns win; otherwise the pattern with the longest prefix before '*'
+    paths.sort(key=lambda kv: ("*" in kv[0], -len(kv[0].split("*")[0]), kv[0]))
+    if not paths and base_dir is None:
+        return None
+    return TsConfig(d, base_dir if base_dir is not None else d, base_dir, paths)
+
+
 # ------------------------------------------------------------------ resolution
 def _module_parts(path: str) -> list[str] | None:
     if not path.endswith(PY_EXT):
@@ -129,8 +224,9 @@ def _module_parts(path: str) -> list[str] | None:
 class Resolver:
     """Resolves import specs against the scanned tree. Deterministic: candidate lists are sorted."""
 
-    def __init__(self, files: dict[str, str]):          # rel path -> language ("python" | "java" | "js")
+    def __init__(self, files: dict[str, str], tsconfigs: list[TsConfig] | None = None):   # rel path -> language
         self.files = files
+        self.tsconfigs = sorted(tsconfigs or [], key=lambda c: -len(c.dir))   # nearest (deepest) first
         self.py_suffix: dict[tuple[str, ...], list[str]] = {}
         self.java_suffix: dict[tuple[str, ...], list[str]] = {}
         self.java_pkg: dict[tuple[str, ...], list[str]] = {}
@@ -186,27 +282,44 @@ class Resolver:
                     found.add(f)
             return (sorted(found), "resolved") if found else ([], "unresolved")
         parts = spec.split(".")
-        candidates: list[list[str]] = []
-        if imp.kind == "from":                           # `from a.b import c` may name a submodule a/b/c.py
-            candidates += [parts + [n] for n in imp.names if n != "*"]
-        candidates.append(parts)
-        hits: set[str] = set()
-        for c in candidates:
-            hits.update(self.py_suffix.get(tuple(c), []))
-            if hits:
-                break
-        if not hits:
+        keys: list[list[str]] = []
+        if imp.kind == "from":
+            # `from a.b import c, d`: c may be a submodule (a/b/c.py); any name that is not a submodule is an
+            # attribute of module a.b itself, so a.b is a target too. Several targets here are NOT ambiguity.
+            attribute = not imp.names or "*" in imp.names
+            for n in imp.names:
+                if n == "*":
+                    continue
+                if self.py_suffix.get(tuple(parts + [n])):
+                    keys.append(parts + [n])
+                else:
+                    attribute = True
+            if attribute:
+                keys.append(parts)
+        else:
+            keys.append(parts)
+        targets: set[str] = set()
+        ambiguous = False
+        here = posixpath.dirname(imp.file)
+        for k in keys:
+            hits = self.py_suffix.get(tuple(k), [])
+            if not hits:
+                continue
+            if len(k) == 1:
+                # A bare top-level name (`import utils`) only resolves to a repository file if Python would find it:
+                # same directory as the importer (script-style). Matches elsewhere depend on sys.path -> inferred.
+                local = [h for h in hits if posixpath.dirname(h) == here
+                         or (h.endswith("/__init__.py") and posixpath.dirname(posixpath.dirname(h)) == here)]
+                if len(local) == 1:
+                    hits = local
+                else:
+                    ambiguous = True
+            elif len(hits) > 1:
+                ambiguous = True
+            targets.update(hits)
+        if not targets:
             return [], "external"
-        if len(c) == 1:
-            # A bare top-level name (`import utils`) only resolves to a repository file if Python would find it:
-            # same directory as the importer (script-style). Matches elsewhere depend on sys.path -> inferred only.
-            here = posixpath.dirname(imp.file)
-            local = sorted(h for h in hits if posixpath.dirname(h) == here or posixpath.dirname(posixpath.dirname(h)) == here
-                           and h.endswith("/__init__.py"))
-            if len(local) == 1:
-                return local, "resolved"
-            return sorted(hits), "ambiguous"
-        return sorted(hits), ("resolved" if len(hits) == 1 else "ambiguous")
+        return sorted(targets), ("ambiguous" if ambiguous else "resolved")
 
     def _py_exact(self, parts: list[str]) -> str | None:
         if not parts:
@@ -231,19 +344,50 @@ class Resolver:
     def _js(self, imp: RawImport) -> tuple[list[str], str]:
         spec = imp.spec
         if not spec.startswith((".", "/")):
-            return [], "external"                        # bare specifier (npm / node builtin) or path alias
+            hit = self._ts_mapped(imp.file, spec)        # tsconfig/jsconfig paths + baseUrl (explicit configuration)
+            return ([hit], "resolved") if hit else ([], "external")   # else: npm package / node builtin
         base = posixpath.dirname(imp.file)
         target = posixpath.normpath(posixpath.join(base, spec)) if not spec.startswith("/") else spec.lstrip("/")
         if target.startswith(".."):
             return [], "unresolved"
+        hit = self._js_file(target)
+        return ([hit], "resolved") if hit else ([], "unresolved")
+
+    def _js_file(self, target: str) -> str | None:
+        target = posixpath.normpath(target) if target else target
         cands = [target, *(target + e for e in JS_EXTS), *(f"{target}/index{e}" for e in JS_EXTS)]
         if target.endswith((".js", ".jsx", ".mjs", ".cjs")):   # TS ESM style: "./x.js" refers to x.ts
             stem = target.rsplit(".", 1)[0]
             cands += [stem + ".ts", stem + ".tsx"]
         for c in cands:
             if self.files.get(c) == "js":
-                return [c], "resolved"
-        return [], "unresolved"
+                return c
+        return None
+
+    def _ts_mapped(self, importer: str, spec: str) -> str | None:
+        for cfg in self.tsconfigs:
+            if cfg.dir and not importer.startswith(cfg.dir + "/"):
+                continue                                  # only the tsconfig that governs the importing file
+            for pattern, targets in cfg.paths:
+                if "*" in pattern:
+                    pre, _, suf = pattern.partition("*")
+                    if not (spec.startswith(pre) and spec.endswith(suf) and len(spec) >= len(pre) + len(suf)):
+                        continue
+                    star = spec[len(pre):len(spec) - len(suf)]
+                elif spec == pattern:
+                    star = ""
+                else:
+                    continue
+                for t in targets:
+                    hit = self._js_file(posixpath.join(cfg.base, t.replace("*", star)) if cfg.base else t.replace("*", star))
+                    if hit:
+                        return hit
+            if cfg.base_url is not None:
+                hit = self._js_file(posixpath.join(cfg.base_url, spec) if cfg.base_url else spec)
+                if hit:
+                    return hit
+            return None                                   # nearest config decides; outer configs do not apply
+        return None
 
 
 def _external_root(spec: str, lang: str) -> str:
@@ -260,10 +404,13 @@ def _external_root(spec: str, lang: str) -> str:
     return ".".join(parts[:2])
 
 
-def resolve_all(raw: list[tuple[RawImport, str]], files: dict[str, str]) -> tuple[list[dict], bool]:
-    """Resolve every raw import; returns (records sorted deterministically, truncated?)."""
-    r = Resolver(files)
+def resolve_all(raw: list[tuple[RawImport, str]], files: dict[str, str], *, java_units: list[JavaUnit] | None = None,
+                tsconfigs: list[TsConfig] | None = None) -> tuple[list[dict], bool]:
+    """Resolve every raw import (+ Java same-package references); returns (records sorted deterministically, truncated?)."""
+    r = Resolver(files, tsconfigs)
     recs = [r.resolve(imp, lang) for imp, lang in raw]
+    if java_units:
+        recs += same_package_records(java_units, recs)
     recs.sort(key=lambda d: (d["file"], d["line"], d["spec"], d["kind"]))
     truncated = len(recs) > MAX_IMPORT_RECORDS
     return recs[:MAX_IMPORT_RECORDS], truncated

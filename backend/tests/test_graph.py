@@ -215,3 +215,29 @@ def test_large_graph_is_fast_and_depth_bounded(tmp_path):
     assert len(fan) == 800 and all(x["confidence"] == "inferred" for x in fan)   # `import m0` from another dir: sys.path-dependent
     small = blast_radius(g, f"file:m{399 - 3}.py")
     assert not small["summary"]["depth_capped"] and len(small["indirect"]) == 3
+
+
+def test_java_same_package_dependency_reaches_the_blast_radius(tmp_path):
+    g, _ = graph_for(tree(tmp_path, {
+        "src/com/acme/sec/Signer.java": ("package com.acme.sec;\nimport java.security.*;\npublic class Signer {\n"
+                                         "  byte[] s() throws Exception { return Signature.getInstance(\"SHA256withECDSA\").sign(); }\n}\n"),
+        "src/com/acme/sec/Api.java": "package com.acme.sec;\npublic class Api {\n  Signer signer = new Signer();\n}\n",
+        "src/com/acme/web/Controller.java": "package com.acme.web;\nimport com.acme.sec.Api;\nclass Controller { Api api; }\n",
+    }))
+    br = blast_radius(g, "algorithm:ECDSA")
+    ind = {x["file"]: x for x in br["indirect"]}
+    assert ind["src/com/acme/sec/Api.java"]["depth"] == 1 and ind["src/com/acme/sec/Api.java"]["confidence"] == "confirmed"
+    assert ind["src/com/acme/web/Controller.java"]["depth"] == 2
+    e = g.edges["IMPORTS:file:src/com/acme/sec/Api.java->file:src/com/acme/sec/Signer.java"]
+    assert "same-package" in e["basis"] and e["evidence"][0]["line"] == 3
+
+
+def test_ts_alias_dependency_reaches_the_blast_radius(tmp_path):
+    g, _ = graph_for(tree(tmp_path, {
+        "web/tsconfig.json": '{"compilerOptions": {"baseUrl": ".", "paths": {"@/*": ["src/*"]}}}',
+        "web/src/lib/hash.ts": "import { createHash } from 'node:crypto';\nexport const h = () => createHash('sha1');\n",
+        "web/src/pages/home.tsx": "import { h } from '@/lib/hash';\n",
+    }))
+    (ind,) = blast_radius(g, "algorithm:SHA-1")["indirect"]
+    assert ind["file"] == "web/src/pages/home.tsx" and ind["confidence"] == "confirmed"
+    assert g.stats["unresolved_imports"] == 0

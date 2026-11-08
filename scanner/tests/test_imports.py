@@ -154,3 +154,67 @@ def test_import_evidence_is_redacted(scan):
 def test_code_files_index_lists_scanned_code_only(scan):
     res = scan({"a.py": "", "B.java": "class B {}\n", "c.ts": "", "README.md": "RSA\n", "x.yaml": "k: v\n"})
     assert res.code_files == {"B.java": "java", "a.py": "python", "c.ts": "js"}
+
+
+# ---------------------------------------------------------------- resolution refinements (graph correctness pass)
+def test_python_from_import_of_submodule_and_attribute_resolves_both(scan):
+    res = scan({"pkg/__init__.py": "VERSION = 1\n", "pkg/crypto.py": "", "app.py": "from pkg import crypto, VERSION\n"})
+    (r,) = by_file(res, "app.py")
+    assert (r["targets"], r["resolution"]) == (["pkg/__init__.py", "pkg/crypto.py"], "resolved")   # two modules, not ambiguity
+
+
+def test_python_ambiguity_is_per_module_not_per_target_count(scan):
+    # only a/pkg has x.py, so only one resolution can work: resolved
+    res = scan({"a/pkg/__init__.py": "", "b/pkg/__init__.py": "", "a/pkg/x.py": "", "app/main.py": "from pkg import x\n"})
+    (r,) = by_file(res, "app/main.py")
+    assert (r["targets"], r["resolution"]) == (["a/pkg/x.py"], "resolved")
+    # both packages have x.py: genuinely ambiguous
+    res = scan({"a/pkg/x.py": "", "b/pkg/x.py": "", "app/main.py": "from pkg import x\n"})
+    (r,) = by_file(res, "app/main.py")
+    assert (r["targets"], r["resolution"]) == (["a/pkg/x.py", "b/pkg/x.py"], "ambiguous")
+
+
+def test_java_same_package_references_without_import(scan):
+    res = scan({
+        "src/com/acme/crypto/Signer.java": "package com.acme.crypto;\nimport java.security.Signature;\npublic class Signer {}\n",
+        "src/com/acme/crypto/Keys.java": "package com.acme.crypto;\npublic class Keys {}\n",
+        "src/com/acme/crypto/Service.java": ("package com.acme.crypto;\nclass Service {\n  // Keys is only mentioned in a comment\n"
+                                             "  String s = \"Keys\";\n  Signer signer = new Signer();\n}\n"),
+        "src/com/acme/other/Signer.java": "package com.acme.other;\npublic class Signer {}\n",
+    })
+    same = [r for r in by_file(res, "src/com/acme/crypto/Service.java") if r["kind"] == "java-same-package"]
+    assert [(r["spec"], r["targets"], r["resolution"], r["line"]) for r in same] == [
+        ("com.acme.crypto.Signer", ["src/com/acme/crypto/Signer.java"], "resolved", 5)]   # comment/string mentions ignored
+
+
+def test_java_explicit_import_shadows_same_package_class(scan):
+    res = scan({
+        "p/Signer.java": "package p;\npublic class Signer {}\n",
+        "q/Signer.java": "package q;\npublic class Signer {}\n",
+        "p/Use.java": "package p;\nimport q.Signer;\nclass Use { Signer s; }\n",
+    })
+    recs_ = by_file(res, "p/Use.java")
+    assert [(r["kind"], r["targets"]) for r in recs_] == [("java", ["q/Signer.java"])]
+
+
+def test_ts_path_aliases_and_base_url_from_tsconfig(scan):
+    res = scan({
+        "web/tsconfig.json": ('{\n  // comments are allowed in tsconfig\n  "compilerOptions": {\n    "baseUrl": ".",\n'
+                              '    "paths": { "@/*": ["src/*"], "@crypto": ["src/crypto/index.ts"] },\n  },\n}\n'),
+        "web/src/crypto/index.ts": "import { createHash } from 'node:crypto';\nexport const h = createHash('sha256');\n",
+        "web/src/util/fmt.ts": "export const f = 1;\n",
+        "web/src/app.ts": "import { h } from '@crypto';\nimport { f } from '@/util/fmt';\nimport { g } from 'src/util/fmt';\nimport React from 'react';\n",
+    })
+    got = {r["spec"]: (r["targets"], r["resolution"]) for r in by_file(res, "web/src/app.ts")}
+    assert got["@crypto"] == (["web/src/crypto/index.ts"], "resolved")
+    assert got["@/util/fmt"] == (["web/src/util/fmt.ts"], "resolved")
+    assert got["src/util/fmt"] == (["web/src/util/fmt.ts"], "resolved")         # baseUrl-relative
+    assert got["react"] == ([], "external")
+    assert res.files_skipped == []                                              # JSONC tsconfig is not a parse error
+
+
+def test_tsconfig_outside_the_importer_tree_is_not_applied(scan):
+    res = scan({"a/tsconfig.json": '{"compilerOptions": {"baseUrl": ".", "paths": {"@/*": ["src/*"]}}}',
+                "a/src/x.ts": "", "b/main.ts": "import x from '@/x';\n"})
+    (r,) = by_file(res, "b/main.ts")
+    assert r["resolution"] == "external"

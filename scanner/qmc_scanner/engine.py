@@ -16,7 +16,7 @@ from typing import Any
 from ._version import ENGINE_VERSION
 from .confscan import hash_comments, scan_directives, scan_pem, scan_structured
 from .context import infer_context
-from .imports import RawImport, java_imports, js_imports, python_imports, resolve_all
+from .imports import JavaUnit, RawImport, TsConfig, java_imports, java_unit, js_imports, parse_tsconfig, python_imports, resolve_all
 from .lexers import lex
 from .matches import RawMatch, clean_evidence, scan_mentions
 from .pyscan import mentions_python, scan_python
@@ -128,6 +128,8 @@ def scan_tree(root: Path | str, *, scan_id: str = "00000000-0000-4000-8000-00000
     skipped_dirs: list[str] = []
     collected: list[tuple[str, RawMatch]] = []
     raw_imports: list[tuple[RawImport, str]] = []
+    java_units: list[JavaUnit] = []
+    tsconfigs: list[TsConfig] = []
     code_files: dict[str, str] = {}
 
     for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
@@ -182,11 +184,17 @@ def scan_tree(root: Path | str, *, scan_id: str = "00000000-0000-4000-8000-00000
                     matches += scan_mentions(mention_rule, lx.comments)
                 code_files[rel] = lang
                 raw_imports += [(i, lang) for i in (java_imports(lx, rel) if lang == "java" else js_imports(lx, rel))]
+                if lang == "java":
+                    java_units.append(java_unit(lx, rel))
             elif lang == "pem":
                 matches, why = scan_pem(text, cfg_rules, as_of)
                 if why:
                     skipped.append({"file": rel, "reason": why})
             elif lang in ("yaml", "json", "text"):
+                if lang == "json" and fn in ("tsconfig.json", "jsconfig.json"):
+                    cfg = parse_tsconfig(rel, text)
+                    if cfg:
+                        tsconfigs.append(cfg)
                 if lang in ("yaml", "json"):
                     matches, why = scan_structured(text, cfg_rules)
                     if why:
@@ -210,7 +218,7 @@ def scan_tree(root: Path | str, *, scan_id: str = "00000000-0000-4000-8000-00000
     for f in findings:
         hits[f["rule_id"]] = hits.get(f["rule_id"], 0) + 1
     used = {r.rule_id: r.rule_version for r in ruleset.rules}
-    imports, truncated = resolve_all(raw_imports, code_files)
+    imports, truncated = resolve_all(raw_imports, code_files, java_units=java_units, tsconfigs=tsconfigs)
     return ScanResult(scan_id, status, findings, dict(sorted(scanned.items())),
                       sorted(skipped, key=lambda s: (s["file"], s["reason"])), sorted(skipped_dirs),
                       dict(sorted(hits.items())), dict(sorted(used.items())),
