@@ -177,3 +177,14 @@ Spec issues found during the readiness check, and the default resolution used.
     Trade-off: whoever holds the token (e.g. from this browser's localStorage) has full access to that scan.
 49. **Abuse limits are in-process** (rate limit, analysis gate, retention, capacity). Correct for one instance;
     a multi-instance deployment needs a shared store.
+50. **Dependency graph = detections + static imports only** (`docs/DEPENDENCY_GRAPH.md`). No call graph, no
+    manifest/package graph, no data assets: there is no reliable evidence source for them yet, so they are not shown.
+    Indirect impact means "imports affected code", never "calls it".
+51. **Confirmed vs inferred imports.** Unique static resolution = confirmed. Several candidates, a bare Python name
+    resolved outside the importer's directory (depends on `sys.path`), or a Java wildcard import = inferred.
+52. **No graph library.** Plain SVG + deterministic layered layout instead of React Flow/Cytoscape/NetworkX (spec 08):
+    avoids new dependencies; the layout is unit-tested for determinism and large inputs.
+53. **Storage.** Import records in `scans.graph` (JSON, nullable, additive upgrade); the graph itself is derived and
+    cached per (analysis run, suppression state). Scans analyzed earlier show direct usage only, and say so.
+54. **Acme fixture** gained three import-only files (`src/api/routes.py`, `src/api/app.py`, `src/payments/refunds.py`)
+    so the demo has real indirect relationships; findings are unchanged, `files_scanned` golden updated (python 6 -> 9).

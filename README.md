@@ -20,7 +20,7 @@ Demo script with real numbers: `docs/DEMO.md`.
 | Dashboard, finding detail (evidence snippet, factor bars), scanner screen with Acme demo loader | done |
 | Migration rules (`07`) + planner screen + detail panel | done |
 | Markdown report with limitations | done |
-| Dependency graph / blast radius (`08`) | **not started** |
+| Dependency graph + blast radius (imports-based, evidence + confirmed/inferred; `docs/DEPENDENCY_GRAPH.md`) | done |
 | PQC Lab (liboqs ML-KEM / ML-DSA) | **not started** |
 | AI Copilot | **not started** |
 | PDF report, diff scanning, Go/Rust/C# | not started (stretch) |
@@ -51,6 +51,7 @@ Scans are deleted after `QMC_RETENTION_HOURS` (default 24); scan creation is rat
     GET  /scans (operator only), /scans/{id}, /scans/{id}/summary, /scans/{id}/findings?band=&algorithm=&service=&q=&vulnerable=...
     GET  /scans/{id}/findings/{fid}  (evidence, snippet, risk factors, migration)   GET /scans/{id}/findings.csv
     POST|DELETE /scans/{id}/findings/{fid}/suppress   GET /scans/{id}/migration   GET /scans/{id}/report.md
+    GET  /scans/{id}/graph, /scans/{id}/graph/blast-radius?node=algorithm:ECDH
 Errors: `{"error": {"code", "message"}}`.
 
 ## Layout
