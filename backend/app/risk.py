@@ -98,6 +98,8 @@ def score(f: dict, service_meta: dict | None) -> dict | None:
     role = role_of(f)
     qe, qe_why = _qe(f, role)
     mc, mc_why = _mc(f, role)
+    # AES-128 gets QE 1 for reduced Grover headroom. That is not "classical hygiene" (nothing is deprecated), so it is labelled separately.
+    grover_only = qe == 1 and f["primitive"] == "symmetric"
 
     def meta_factor(key: str, field: str, table: dict | None, label: str):
         v = meta.get(field)
@@ -123,11 +125,12 @@ def score(f: dict, service_meta: dict | None) -> dict | None:
     if qe == 0:
         band, cap_reason = "Informational", "Guard rule: no quantum exposure, so Informational regardless of context."
     elif qe == 1 and BANDS.index(band) > 1:
-        band, cap_reason = "Review", "Capped at Review: classical hygiene issue, not a quantum vulnerability."
+        band, cap_reason = "Review", ("Capped at Review: symmetric key-size margin (Grover), not a Shor-type quantum vulnerability."
+                                      if grover_only else "Capped at Review: classical hygiene issue, not a quantum vulnerability.")
     elif f["confidence_level"] != "high" and BANDS.index(band) > 1:
         band, cap_reason = "Review", f"Capped at Review: confidence is {f['confidence_level']}; requires human review."
     if qe == 1:
-        badges.append("classical hygiene")
+        badges.append("symmetric key size" if grover_only else "classical hygiene")
     if f["metadata"]["test_path"]:
         badges.append("test/dev path")
 
@@ -136,6 +139,10 @@ def score(f: dict, service_meta: dict | None) -> dict | None:
     if role == "key-establishment" and f["primitive"] == "public-key":
         if lifetime is None:
             badges.append("metadata missing: data_lifetime_years")
+        if lifetime is None or ds_src != "service.yaml" or ie_src != "service.yaml":
+            # The midpoint defaults (DS 2, IE 1.5) can never meet the HNDL thresholds, so without real metadata HNDL would
+            # silently read as "no". Say explicitly that it was not assessed instead (the flag stays False).
+            badges.append("HNDL not assessed: metadata missing")
         elif ds >= 3 and ie >= 2 and lifetime >= 5:
             sev = "elevated" if lifetime >= 10 else "noted"
             hndl = {"flag": True, "severity": sev, "text": (

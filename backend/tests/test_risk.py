@@ -135,3 +135,22 @@ def test_ranking_follows_displayed_band_before_number():
     crit = F(id="CRYPTO-002", algorithm="ECDSA", operation="signature", context="authentication")   # QMP 20, Critical
     order = sorted([(capped, score(capped, PAYMENT)), (crit, score(crit, PAYMENT))], key=lambda p: priority_key(*p))
     assert [o[0]["id"] for o in order] == ["CRYPTO-002", "CRYPTO-001"]
+
+
+def test_aes128_is_labelled_key_size_not_classical_hygiene():
+    md = {"key_size": 128, "comment_only": False, "in_dead_code": False, "test_path": False}
+    r = score(F(algorithm="AES", primitive="symmetric", operation="encryption", quantum_vulnerable=False, metadata=md), PAYMENT)
+    assert r["band"] == "Review" and "symmetric key size" in r["badges"] and "classical hygiene" not in r["badges"]
+    assert "Grover" in r["cap_reason"] and "classical hygiene" not in r["cap_reason"]
+
+
+@pytest.mark.parametrize("missing", ["data_classification", "internet_exposed", "data_lifetime_years"])
+def test_hndl_without_metadata_is_marked_not_assessed(missing):
+    meta = {k: v for k, v in PAYMENT.items() if k != missing}
+    r = score(F(), meta)
+    assert r["hndl"]["flag"] is False and "HNDL not assessed: metadata missing" in r["badges"]
+
+
+def test_hndl_with_full_metadata_has_no_not_assessed_badge():
+    assert "HNDL not assessed: metadata missing" not in score(F(), PAYMENT)["badges"]
+    assert "HNDL not assessed: metadata missing" not in score(F(algorithm="ECDSA", operation="signature", context="authentication"), {})["badges"]
