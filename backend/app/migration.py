@@ -35,12 +35,14 @@ RULES = {
     "R-03": ("ECDH (incl. X25519/X448) for key establishment", ML_KEM, "KE"),
     "R-04": ("RSA signatures", SIG, "SIG"), "R-05": ("ECDSA signatures", SIG, "SIG"),
     "R-06": ("EdDSA (Ed25519/Ed448) signatures", SIG, "SIG"), "R-07": ("DSA signatures", SIG, "SIG"),
-    "R-08": ("AES", None, None), "R-09": ("SHA-1", None, None), "R-10": ("SHA-2 / SHA-3", None, None),
+    "R-08": ("AES", None, None), "R-09": ("SHA-1 / MD5", None, None), "R-10": ("SHA-2 / SHA-3", None, None),
     "R-11": ("HMAC", None, None), "R-12": ("Unknown / unclassified crypto", None, None),
 }
 NO_PQC = {
     "R-08": ("Symmetric crypto is not Shor-vulnerable. Consider AES-256 for Grover headroom.", ["AES-256 (or AES-128 with adequate planning) remains appropriate."]),
-    "R-09": ("SHA-1 is deprecated for classical reasons, not quantum ones. Replace with SHA-256/SHA-3 (classical hygiene).", ["SHA-1 collisions are practical today; this is a classical fix."]),
+    "R-09": ("SHA-1 and MD5 are deprecated for classical reasons, not quantum ones. Replace with SHA-256/SHA-3 (classical hygiene).",
+             ["SHA-1 and MD5 collisions are practical today; this is a classical fix.",
+              "If the digest is a non-security checksum (e.g. cache keys), document that decision instead of migrating."]),
     "R-10": ("Hash functions face only generic quantum speedups. Retain; prefer >= 256-bit output (SHA-384 for long-term headroom).", []),
     "R-11": ("MACs are symmetric; adequate key and tag sizes suffice. Retain.", []),
 }
@@ -74,7 +76,7 @@ def pick_rule(f: dict, role: str | None) -> tuple[str, str | None]:
     if prim == "symmetric":
         return "R-08", None
     if prim == "hash":
-        return ("R-09" if alg == "SHA-1" else "R-10"), None
+        return ("R-09" if alg in ("SHA-1", "MD5") else "R-10"), None
     if prim == "mac":
         return "R-11", None
     return "R-12", None

@@ -1,5 +1,5 @@
 rule_id: PY-HASHLIB-002
-rule_version: 1.0.0
+rule_version: 1.1.0
 language: python
 description: hashlib.new / pbkdf2_hmac with a literal digest name
 library: hashlib
@@ -19,6 +19,8 @@ match:
   - kw: name
   - kw: hash_name
   value_map:
+    md5:
+      algorithm: MD5
     sha1:
       algorithm: SHA-1
     sha256:

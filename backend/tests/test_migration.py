@@ -96,3 +96,12 @@ def test_planner_endpoint_on_real_demo_data(client):
     assert [r["rank"] for r in d["rows"]] == sorted(r["rank"] for r in d["rows"])
     det = client.get(f"/api/scans/{sid}/findings/{ecdh['id']}").json()
     assert det["migration"]["rule_id"] == "R-03" and det["migration"]["steps"]
+
+
+def test_md5_is_classical_hygiene_never_retained():
+    """MD5 must route to R-09 (replace), never to R-10 ('retain'), and is never mapped to a PQC algorithm."""
+    f = F(algorithm="MD5", primitive="hash", operation="hashing", quantum_vulnerable=False)
+    r = score(f, PAYMENT)
+    p = plan_for(f, r)
+    assert p["rule_id"] == "R-09" and "Retain" not in p["why"] and "SHA-256" in p["steps"][0]
+    assert r["factors"]["QE"]["value"] == 1 and r["band"] == "Review" and "classical hygiene" in r["badges"]

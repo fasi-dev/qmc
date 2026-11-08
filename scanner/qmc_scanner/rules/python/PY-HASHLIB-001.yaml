@@ -1,5 +1,5 @@
 rule_id: PY-HASHLIB-001
-rule_version: 1.0.0
+rule_version: 1.1.0
 language: python
 description: hashlib named constructors
 library: hashlib
@@ -12,6 +12,8 @@ match:
   type: python_call
   value_from: fqn
   value_map:
+    hashlib.md5:
+      algorithm: MD5
     hashlib.sha1:
       algorithm: SHA-1
     hashlib.sha256:
